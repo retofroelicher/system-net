@@ -2,18 +2,15 @@ window.APP_CONFIG = Object.freeze({
   sphere: { cx: 500, cy: 350, r: 300 },
   nodeCount: 60,
   neighborsPerNode: 3,
-  // Auto-Rotation standardmässig AUS
   autoRotate: { x: 0.0006, y: 0.0016, enabled: false },
 
-  // Kamera/Projektion
-  perspective: 900, // Basis-Kameradistanz (grösser = weiter weg)
+  perspective: 900,
 
-  // Zoom-Einstellungen (Mausrad)
   zoom: {
-    min: 500,      // näheste Kameradistanz (kleiner = näher/ grösserer Ball)
-    max: 2200,     // fernste Kameradistanz
-    step: 1.15,    // Zoomfaktor pro "Zahn" am Mausrad
-    trackpadStep: 1.05 // feinere Schritte für Trackpads / kleine deltaY
+    min: 500,
+    max: 2200,
+    step: 1.15,
+    trackpadStep: 1.05
   },
 
   nodeBaseSize: 5.5,
@@ -26,7 +23,6 @@ window.APP_CONFIG = Object.freeze({
     metaGroup: "Gruppe"
   },
   data: {
-    // Pfad relativ zum Projektstamm (index.html liegt im Root)
-    url: "data/nodes.json"
+    url: "./data/nodes.json"
   }
 });
