@@ -1,3 +1,4 @@
+/* Rendering & interaction engine for the wireframe sphere (no external libs). */
 (function(){
   const CFG = window.APP_CONFIG;
 
@@ -5,11 +6,18 @@
   let filterMode = "ALL";
   let rafId = null;
 
-  const nodes = [];
-  const edges = [];
+  // Maus-Drag
+  let isDragging = false;
+  let lastMouse = { x: 0, y: 0 };
+  const DRAG_SENS = 0.003; // rad pro Pixel
+
+  const nodes = []; // {id, group, data, base{x,y,z}, pos{x,y,z}, el{g,circle,ring}, neighbors[]}
+  const edges = []; // {a,b,el}
 
   const gEdges = () => document.getElementById("edges");
   const gNodes = () => document.getElementById("nodes");
+  const svgEl = () => document.getElementById("scene");
+  const tooltip = () => document.getElementById("tooltip");
   const info = {
     title: () => document.getElementById("info-title"),
     desc: () => document.getElementById("info-desc"),
@@ -77,6 +85,7 @@
     const total = CFG.nodeCount;
     const points = fibonacciSphere(total);
 
+    // Datenpunkte gleichmässig verteilen
     const dataSlots = new Set();
     while(dataSlots.size < Math.min(items.length, total)){
       dataSlots.add(Math.floor(Math.random()*total));
@@ -92,6 +101,7 @@
       nodes.push({ id:"n"+i, group, data, base:{...base}, pos:{...base}, neighbors:[], el:null });
     }
 
+    // Kanten (k-NN)
     const pairSet = new Set();
     nodes.forEach((_,i)=>{
       const nn = nearestNeighbors(i, CFG.neighborsPerNode);
@@ -110,6 +120,7 @@
       });
     });
 
+    // Knoten-Elemente
     nodes.forEach((n,i)=>{
       const g = document.createElementNS("http://www.w3.org/2000/svg","g");
       g.classList.add("node");
@@ -119,22 +130,30 @@
       g.dataset.group = n.group;
       g.dataset.id = n.id;
 
+      // Native Fallback-Tooltip
+      const t = document.createElementNS("http://www.w3.org/2000/svg","title");
+      t.textContent = n.data ? n.data.title : `Knoten • Gruppe ${n.group}`;
+
       const ring = document.createElementNS("http://www.w3.org/2000/svg","circle");
       ring.classList.add("ring");
 
       const c = document.createElementNS("http://www.w3.org/2000/svg","circle");
       c.setAttribute("r", CFG.nodeBaseSize.toString());
 
+      g.appendChild(t);
       g.appendChild(ring);
       g.appendChild(c);
       gNodes().appendChild(g);
 
       n.el = { g, circle: c, ring };
 
+      // Interaktionen
       g.addEventListener("click", ()=> onSelectNode(n));
-      g.addEventListener("keydown", (e)=>{
-        if(e.key === "Enter" || e.key === " "){ e.preventDefault(); onSelectNode(n); }
-      });
+      g.addEventListener("mouseenter", (e)=> showTooltipAt(
+        n.data ? n.data.title : `Knoten • Gruppe ${n.group}`, e
+      ));
+      g.addEventListener("mousemove", (e)=> moveTooltip(e));
+      g.addEventListener("mouseleave", hideTooltip);
     });
   }
 
@@ -143,10 +162,10 @@
     node.el.g.classList.add("active");
 
     const has = !!node.data;
-    info.title().textContent = has ? node.data.title : CFG.labels.defaultTitle;
-    info.desc().textContent  = has ? node.data.desc  : CFG.labels.placeholderDesc;
+    info.title().textContent = has ? node.data.title : "Knoten";
+    info.desc().textContent  = has ? node.data.desc  : "Platzhalter-Knoten ohne hinterlegte Details.";
+    info.links().innerHTML   = "";
 
-    info.links().innerHTML = "";
     if(has && Array.isArray(node.data.links)){
       node.data.links.forEach(l=>{
         const li = document.createElement("li");
@@ -155,18 +174,39 @@
         li.appendChild(a); info.links().appendChild(li);
       });
     }
-    info.meta().textContent = `${CFG.labels.metaGroup}: ${node.group}`;
+    info.meta().textContent = `Gruppe: ${node.group}`;
   }
 
   function clearSelection(){
     document.querySelectorAll(".node.active").forEach(el=>el.classList.remove("active"));
-    info.title().textContent = CFG.labels.defaultTitle;
-    info.desc().textContent  = CFG.labels.defaultDesc;
+    info.title().textContent = "Wähle einen Knotenpunkt";
+    info.desc().textContent  = "Klicke auf einen Punkt, um Details und Links zu sehen.";
     info.links().innerHTML   = "";
     info.meta().textContent  = "";
   }
 
+  // Tooltip helpers
+  function showTooltipAt(text, evt){
+    const el = tooltip();
+    el.textContent = text;
+    el.hidden = false;
+    moveTooltip(evt);
+  }
+  function moveTooltip(evt){
+    const el = tooltip();
+    if(el.hidden) return;
+    const pad = 12;
+    const x = evt.clientX + pad;
+    const y = evt.clientY + pad;
+    el.style.transform = `translate(${x}px, ${y}px)`;
+  }
+  function hideTooltip(){
+    const el = tooltip();
+    el.hidden = true;
+  }
+
   function render(){
+    // langsamere Auto-Rotation (aus config)
     rotation.x += CFG.autoRotate.x;
     rotation.y += CFG.autoRotate.y;
 
@@ -226,14 +266,51 @@
   }
 
   function setupControls(){
-    document.getElementById("info-close").addEventListener("click", clearSelection);
-    window.addEventListener("keydown", (e)=>{
-      const step = 0.06;
-      if(e.key === "ArrowLeft") rotation.y -= step;
-      if(e.key === "ArrowRight") rotation.y += step;
-      if(e.key === "ArrowUp") rotation.x -= step;
-      if(e.key === "ArrowDown") rotation.x += step;
+    // Maus-Drag auf dem gesamten SVG
+    const svg = svgEl();
+
+    svg.addEventListener("mousedown", (e)=>{
+      isDragging = true;
+      lastMouse.x = e.clientX;
+      lastMouse.y = e.clientY;
+      hideTooltip();
     });
+    window.addEventListener("mousemove", (e)=>{
+      if(!isDragging) return;
+      const dx = e.clientX - lastMouse.x;
+      const dy = e.clientY - lastMouse.y;
+      rotation.y += dx * DRAG_SENS;
+      rotation.x += dy * DRAG_SENS;
+      rotation.x = clamp(rotation.x, -Math.PI/2, Math.PI/2);
+      lastMouse.x = e.clientX;
+      lastMouse.y = e.clientY;
+    });
+    window.addEventListener("mouseup", ()=>{ isDragging = false; });
+
+    // Touch-Unterstützung
+    svg.addEventListener("touchstart", (e)=>{
+      if(e.touches.length !== 1) return;
+      const t = e.touches[0];
+      isDragging = true;
+      lastMouse.x = t.clientX;
+      lastMouse.y = t.clientY;
+      hideTooltip();
+    }, {passive:true});
+    svg.addEventListener("touchmove", (e)=>{
+      if(!isDragging || e.touches.length !== 1) return;
+      const t = e.touches[0];
+      const dx = t.clientX - lastMouse.x;
+      const dy = t.clientY - lastMouse.y;
+      rotation.y += dx * DRAG_SENS;
+      rotation.x += dy * DRAG_SENS;
+      rotation.x = clamp(rotation.x, -Math.PI/2, Math.PI/2);
+      lastMouse.x = t.clientX;
+      lastMouse.y = t.clientY;
+    }, {passive:true});
+    svg.addEventListener("touchend", ()=>{ isDragging = false; });
+
+    // Pfeiltasten-Bedienung entfällt explizit
+    info.close().addEventListener("click", clearSelection);
     window.addEventListener("blur", ()=>{ if(rafId){ cancelAnimationFrame(rafId); rafId = null; }});
     window.addEventListener("focus", ()=>{ if(!rafId) rafId = requestAnimationFrame(render); });
   }

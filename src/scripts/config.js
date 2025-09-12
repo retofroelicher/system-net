@@ -1,9 +1,9 @@
-/* Central configuration and labels */
 window.APP_CONFIG = Object.freeze({
   sphere: { cx: 500, cy: 350, r: 300 },
   nodeCount: 60,
   neighborsPerNode: 3,
-  autoRotate: { x: 0.0012, y: 0.0032 },
+  // langsamere Auto-Rotation
+  autoRotate: { x: 0.0006, y: 0.0016 },
   perspective: 900,
   nodeBaseSize: 5.5,
   minScale: 0.55,
@@ -15,6 +15,6 @@ window.APP_CONFIG = Object.freeze({
     metaGroup: "Gruppe"
   },
   data: {
-    url: "./data/nodes.json" // neu: relativ zu index.html im Stamm
+    url: "./data/nodes.json"
   }
 });
