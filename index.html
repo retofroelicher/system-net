@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interaktive Netz-Kugel – Prototyp</title>
+  <link rel="stylesheet" href="./src/styles/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>Interaktive Netz-Kugel</h1>
+    <div class="filters" role="toolbar" aria-label="Filter">
+      <button class="btn active" data-filter="ALL" aria-pressed="true">Alle</button>
+      <button class="btn" data-filter="1" aria-pressed="false">Gruppe&nbsp;1</button>
+      <button class="btn" data-filter="2" aria-pressed="false">Gruppe&nbsp;2</button>
+      <button class="btn" data-filter="1+2" aria-pressed="false">Gruppe&nbsp;1+2</button>
+    </div>
+  </header>
+
+  <main class="stage">
+    <div class="sphere-shadow"></div>
+
+    <svg id="scene" viewBox="0 0 1000 700" aria-label="Interaktive Netz-Kugel" tabindex="0">
+      <defs>
+        <radialGradient id="ballGlow" cx="50%" cy="45%">
+          <stop offset="0%" stop-color="rgba(255,255,255,0.25)"/>
+          <stop offset="60%" stop-color="rgba(80,140,255,0.15)"/>
+          <stop offset="100%" stop-color="rgba(0,0,0,0)"/>
+        </radialGradient>
+        <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="2" result="blur"/>
+          <feMerge>
+            <feMergeNode in="blur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+
+      <circle id="ball" cx="500" cy="350" r="300" fill="url(#ballGlow)" />
+      <g id="edges" stroke-linecap="round"></g>
+      <g id="nodes"></g>
+    </svg>
+
+    <aside id="info" aria-live="polite" aria-atomic="true">
+      <div class="info-header">
+        <h2 id="info-title">Wähle einen Knotenpunkt</h2>
+        <button id="info-close" class="icon-btn" aria-label="Schliessen">&times;</button>
+      </div>
+      <p id="info-desc">Klicke auf einen Punkt, um Details und Links zu sehen.</p>
+      <ul id="info-links" class="link-list"></ul>
+      <div id="info-meta" class="meta"></div>
+    </aside>
+  </main>
+
+  <footer class="credits">
+    <small>Demo: Pfeiltasten = Rotation, Enter = Knoten aktivieren.</small>
+  </footer>
+
+  <!-- Skripte (relative zum Projektstamm) -->
+  <script src="./src/scripts/config.js"></script>
+  <script src="./src/scripts/data.js"></script>
+  <script src="./src/scripts/engine.js"></script>
+  <script src="./src/scripts/main.js"></script>
+</body>
+</html>

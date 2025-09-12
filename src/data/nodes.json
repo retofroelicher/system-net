@@ -1,0 +1,101 @@
+{
+  "items": [
+    {
+      "title": "Onboarding Guide",
+      "group": "1",
+      "desc": "Kurzer Einstieg mit Links zu internen Ressourcen.",
+      "links": [
+        { "label": "Dokument", "href": "#" },
+        { "label": "Wiki", "href": "#" }
+      ]
+    },
+    {
+      "title": "Team Space",
+      "group": "2",
+      "desc": "Übersicht Team, Rollen und Zuständigkeiten.",
+      "links": [
+        { "label": "Board", "href": "#" }
+      ]
+    },
+    {
+      "title": "Roadmap Q4",
+      "group": "1+2",
+      "desc": "Aktuelle Meilensteine kompakt.",
+      "links": [
+        { "label": "Epics", "href": "#" }
+      ]
+    },
+    {
+      "title": "Design System",
+      "group": "1",
+      "desc": "UI-Komponenten, Tokens und Beispiele.",
+      "links": [
+        { "label": "Figma", "href": "#" }
+      ]
+    },
+    {
+      "title": "Datenrichtlinien",
+      "group": "2",
+      "desc": "Security, Datenschutz und Compliance.",
+      "links": [
+        { "label": "Policy", "href": "#" }
+      ]
+    },
+    {
+      "title": "API Katalog",
+      "group": "1+2",
+      "desc": "Services und Endpoints im Überblick.",
+      "links": [
+        { "label": "Swagger", "href": "#" }
+      ]
+    },
+    {
+      "title": "Lab: Prototyping",
+      "group": "1",
+      "desc": "Experimentelle Ideen & Demos.",
+      "links": [
+        { "label": "Repository", "href": "#" }
+      ]
+    },
+    {
+      "title": "Support",
+      "group": "2",
+      "desc": "Kontakt & Hilfe.",
+      "links": [
+        { "label": "Kontaktformular", "href": "#" }
+      ]
+    },
+    {
+      "title": "Release Notes",
+      "group": "1+2",
+      "desc": "Letzte Änderungen und Fixes.",
+      "links": [
+        { "label": "Changelog", "href": "#" }
+      ]
+    },
+    {
+      "title": "Schulung Basics",
+      "group": "1",
+      "desc": "Grundlagenmodul für neue Mitarbeitende.",
+      "links": [
+        { "label": "Kursseite", "href": "#" }
+      ]
+    },
+    {
+      "title": "Workshops",
+      "group": "2",
+      "desc": "Angebote & Termine.",
+      "links": [
+        { "label": "Kalender", "href": "#" }
+      ]
+    },
+    {
+      "title": "Stilrichtlinien",
+      "group": "1+2",
+      "desc": "Tone of Voice & Schreibstil.",
+      "links": [
+        { "label": "Leitfaden", "href": "#" }
+      ]
+    }
+  ]
+}
