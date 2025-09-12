@@ -1,4 +1,4 @@
-/* Rendering & interaction engine for the wireframe sphere (no external libs). */
+/* Rendering & interaction engine with popover (no external libs). */
 (function(){
   const CFG = window.APP_CONFIG;
 
@@ -9,30 +9,29 @@
   // Maus-Drag
   let isDragging = false;
   let lastMouse = { x: 0, y: 0 };
-  const DRAG_SENS = 0.003; // rad pro Pixel (feinfühlig)
+  const DRAG_SENS = 0.003; // rad/px
 
-  // Auto-Rotate Toggle-State (aus Config)
+  // Auto-Rotate
   let autoOn = CFG.autoRotate && CFG.autoRotate.enabled !== false;
 
-  // Zoom (Kameradistanz d in der Projektionsformel)
-  let cameraD = CFG.perspective; // wird per Mausrad angepasst
+  // Zoom (Kameradistanz)
+  let cameraD = CFG.perspective;
 
-  const nodes = []; // {id, group, data, base{x,y,z}, pos{x,y,z}, el{g,circle,ring}, neighbors[]}
-  const edges = []; // {a,b,el}
+  const nodes = []; // {id, group, data, base, pos, screen{x,y}, el, neighbors[]}
+  const edges = [];
 
   const gEdges = () => document.getElementById("edges");
   const gNodes = () => document.getElementById("nodes");
   const svgEl  = () => document.getElementById("scene");
   const tooltip = () => document.getElementById("tooltip");
-  const info = {
-    title: () => document.getElementById("info-title"),
-    desc:  () => document.getElementById("info-desc"),
-    links: () => document.getElementById("info-links"),
-    meta:  () => document.getElementById("info-meta"),
-    close: () => document.getElementById("info-close")
+  const pop = () => document.getElementById("popover");
+  const popEls = {
+    title: () => document.getElementById("pop-title"),
+    desc:  () => document.getElementById("pop-desc"),
+    links: () => document.getElementById("pop-links"),
+    close: () => document.getElementById("pop-close")
   };
 
-  function lerp(a,b,t){ return a + (b - a) * t; }
   function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
 
   function fibonacciSphere(n){
@@ -61,7 +60,7 @@
 
   function project(p3){
     const { cx, cy, r } = CFG.sphere;
-    const d = cameraD; // <-- dynamische Kameradistanz für Zoom
+    const d = cameraD;
     const scale = d / (d - (p3.z * r));
     const x2d = cx + (p3.x * r) * scale;
     const y2d = cy + (p3.y * r) * scale;
@@ -77,13 +76,13 @@
     return dists.slice(0,k).map(d=>d.i);
   }
 
-  // Gruppennamen angleichen (Unterstützung für alte und neue Daten)
+  // Alte/neue Gruppennamen abgleichen
   function normalizeGroup(g){
     if(!g) return "API & PLA";
     const s = String(g).trim().toUpperCase();
     if(s === "1") return "API";
     if(s === "2") return "PLA";
-    if(s === "1+2" || s === "1 & 2" || s === "API & PLA" || s === "API&PLA") return "API & PLA";
+    if(s === "1+2" || s === "1 & 2" || s === "API&PLA" || s === "API & PLA") return "API & PLA";
     if(s === "API") return "API";
     if(s === "PLA") return "PLA";
     return "API & PLA";
@@ -93,7 +92,6 @@
     filterMode = mode;
     clearSelection();
   }
-
   function passFilter(n){
     if(filterMode === "ALL") return true;
     return normalizeGroup(n.group) === filterMode;
@@ -103,7 +101,6 @@
     const total = CFG.nodeCount;
     const points = fibonacciSphere(total);
 
-    // Datenpunkte gleichmässig verteilen
     const dataSlots = new Set();
     while(dataSlots.size < Math.min(items.length, total)){
       dataSlots.add(Math.floor(Math.random()*total));
@@ -115,15 +112,11 @@
       const base = points[i];
       const hasData = dataSlots.has(i);
       const data = hasData ? items[ slotArr.indexOf(i) ] : null;
-
-      const rawGroup = data ? data.group : fallbackGroups[Math.floor(Math.random()*fallbackGroups.length)];
-      const group = normalizeGroup(rawGroup);
-
-      const node = { id:"n"+i, group, data, base:{...base}, pos:{...base}, neighbors:[], el:null };
-      nodes.push(node);
+      const group = normalizeGroup(data ? data.group : fallbackGroups[Math.floor(Math.random()*fallbackGroups.length)]);
+      nodes.push({ id:"n"+i, group, data, base:{...base}, pos:{...base}, screen:{x:0,y:0}, neighbors:[], el:null });
     }
 
-    // Kanten (k-NN)
+    // Kanten
     const pairSet = new Set();
     nodes.forEach((_,i)=>{
       const nn = nearestNeighbors(i, CFG.neighborsPerNode);
@@ -146,13 +139,10 @@
     nodes.forEach((n,i)=>{
       const g = document.createElementNS("http://www.w3.org/2000/svg","g");
       g.classList.add("node");
-      g.setAttribute("tabindex","0");
-      g.setAttribute("role","button");
-
+      g.setAttribute("tabindex","0"); g.setAttribute("role","button");
       const titleText = n.data ? n.data.title : `Knoten • ${n.group}`;
       g.setAttribute("aria-label", `${titleText} (${n.group})`);
-      g.dataset.group = n.group;
-      g.dataset.id = n.id;
+      g.dataset.group = n.group; g.dataset.id = n.id;
 
       const t = document.createElementNS("http://www.w3.org/2000/svg","title");
       t.textContent = titleText;
@@ -163,13 +153,11 @@
       const c = document.createElementNS("http://www.w3.org/2000/svg","circle");
       c.setAttribute("r", CFG.nodeBaseSize.toString());
 
-      g.appendChild(t);
-      g.appendChild(ring);
-      g.appendChild(c);
+      g.appendChild(t); g.appendChild(ring); g.appendChild(c);
       gNodes().appendChild(g);
-
       n.el = { g, circle: c, ring };
 
+      // Interaktionen
       g.addEventListener("click", (evt)=>{ evt.stopPropagation(); onSelectNode(n); });
       g.addEventListener("mouseenter", (e)=> showTooltipAt(titleText, e));
       g.addEventListener("mousemove",  (e)=> moveTooltip(e));
@@ -183,32 +171,70 @@
     });
   }
 
-  function onSelectNode(node){
-    document.querySelectorAll(".node.active").forEach(el=>el.classList.remove("active"));
-    node.el.g.classList.add("active");
-
+  function fillPopover(node){
     const has = !!node.data;
-    info.title().textContent = has ? node.data.title : "Knoten";
-    info.desc().textContent  = has ? node.data.desc  : "Platzhalter-Knoten ohne hinterlegte Details.";
-    info.links().innerHTML   = "";
-
+    popEls.title().textContent = has ? node.data.title : "Knoten";
+    popEls.desc().textContent  = has ? node.data.desc  : "Platzhalter-Knoten ohne hinterlegte Details.";
+    popEls.links().innerHTML   = "";
     if(has && Array.isArray(node.data.links)){
       node.data.links.forEach(l=>{
         const li = document.createElement("li");
         const a = document.createElement("a");
         a.href = l.href; a.target="_blank"; a.rel="noopener noreferrer"; a.textContent = l.label;
-        li.appendChild(a); info.links().appendChild(li);
+        li.appendChild(a); popEls.links().appendChild(li);
       });
     }
-    info.meta().textContent = `Gruppe: ${node.group}`;
+  }
+
+  function positionPopoverAt(node){
+    const svg = svgEl();
+    const p = pop();
+    if(p.hidden) return;
+
+    const svgRect = svg.getBoundingClientRect();
+    const viewW = 1000, viewH = 700; // aus viewBox
+    const sx = svgRect.left + (node.screen.x / viewW) * svgRect.width;
+    const sy = svgRect.top  + (node.screen.y / viewH) * svgRect.height;
+
+    // Erst messen (sichtbar halten, sonst getBoundingClientRect ist 0)
+    const popRect = p.getBoundingClientRect();
+    const margin = 12;
+    let left = sx - popRect.width/2;
+    left = clamp(left, svgRect.left + margin, svgRect.right - popRect.width - margin);
+
+    // Standard: oberhalb
+    let top = sy - popRect.height - 14;
+    let placement = "top";
+
+    // Falls knapp am oberen Rand -> unten anzeigen
+    if(top < svgRect.top + 48){
+      top = sy + 14;
+      placement = "bottom";
+    }
+
+    // Pfeil horizontal ausrichten (Position innerhalb des Popovers)
+    const arrowX = clamp(sx - left, 14, popRect.width - 14);
+
+    p.dataset.placement = placement;
+    p.style.setProperty("--arrow-x", `${Math.round(arrowX)}px`);
+    p.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
+  }
+
+  function onSelectNode(node){
+    // Aktiv markieren
+    document.querySelectorAll(".node.active").forEach(el=>el.classList.remove("active"));
+    node.el.g.classList.add("active");
+
+    // Popover füllen + anzeigen
+    fillPopover(node);
+    const p = pop();
+    p.hidden = false;
+    positionPopoverAt(node);
   }
 
   function clearSelection(){
     document.querySelectorAll(".node.active").forEach(el=>el.classList.remove("active"));
-    info.title().textContent = CFG.labels.defaultTitle;
-    info.desc().textContent  = CFG.labels.defaultDesc;
-    info.links().innerHTML   = "";
-    info.meta().textContent  = "";
+    pop().hidden = true;
   }
 
   // Tooltip helpers
@@ -222,14 +248,9 @@
     const el = tooltip();
     if(el.hidden) return;
     const pad = 12;
-    const x = evt.clientX + pad;
-    const y = evt.clientY + pad;
-    el.style.transform = `translate(${x}px, ${y}px)`;
+    el.style.transform = `translate(${evt.clientX + pad}px, ${evt.clientY + pad}px)`;
   }
-  function hideTooltip(){
-    const el = tooltip();
-    el.hidden = true;
-  }
+  function hideTooltip(){ tooltip().hidden = true; }
 
   function render(){
     if (autoOn) {
@@ -244,9 +265,12 @@
       n.pos = rot;
       const p2 = project(rot);
 
-      const depth = clamp((rot.z + 1) / 2, 0, 1);
-      const s = lerp(CFG.minScale, CFG.maxScale, depth);
-      const alpha = lerp(0.45, 1.0, depth);
+      // Position + Tiefe
+      n.screen.x = p2.x; n.screen.y = p2.y;
+
+      const depth = (rot.z + 1) / 2;
+      const s = (CFG.minScale + (CFG.maxScale - CFG.minScale) * clamp(depth,0,1));
+      const alpha = (0.45 + (1.0 - 0.45) * clamp(depth,0,1));
 
       n.el.circle.setAttribute("cx", p2.x.toFixed(2));
       n.el.circle.setAttribute("cy", p2.y.toFixed(2));
@@ -261,6 +285,7 @@
       depthOrder.push({ z: rot.z, el: n.el.g });
     }
 
+    // Kanten
     for(const e of edges){
       const a = nodes[e.a], b = nodes[e.b];
       if(!passFilter(a) || !passFilter(b)){ e.el.style.display = "none"; continue; }
@@ -274,8 +299,19 @@
       e.el.setAttribute("stroke-opacity", (0.25 + alpha * 0.55).toFixed(2));
     }
 
+    // Zeichenreihenfolge (z-Index)
     depthOrder.sort((a,b)=>a.z - b.z);
     depthOrder.forEach(item=>gNodes().appendChild(item.el));
+
+    // Falls Popover offen ist, an aktive Node anheften
+    if(!pop().hidden){
+      const active = document.querySelector(".node.active");
+      if(active){
+        const id = active.dataset.id;
+        const n = nodes.find(nn => nn.id === id);
+        if(n) positionPopoverAt(n);
+      }
+    }
 
     rafId = requestAnimationFrame(render);
   }
@@ -293,46 +329,36 @@
       });
     });
 
-    // iOS-Toggle (Checkbox) für Auto-Rotation
     const autoInput = controls.querySelector("#toggle-auto");
     if (autoInput){
-      autoInput.checked = !!autoOn; // initial aus Config
-      autoInput.addEventListener("change", ()=>{
-        autoOn = !!autoInput.checked;
-      });
+      autoInput.checked = !!autoOn;
+      autoInput.addEventListener("change", ()=>{ autoOn = !!autoInput.checked; });
     }
   }
 
   function setupControls(){
     const svg = svgEl();
 
-    // Maus-Drag mit natürlicher Y-Richtung (ziehen/stossen)
+    // Drag (ziehen/stossen)
     svg.addEventListener("mousedown", (e)=>{
-      isDragging = true;
-      lastMouse.x = e.clientX;
-      lastMouse.y = e.clientY;
-      hideTooltip();
+      isDragging = true; lastMouse.x = e.clientX; lastMouse.y = e.clientY; hideTooltip();
     });
     window.addEventListener("mousemove", (e)=>{
       if(!isDragging) return;
       const dx = e.clientX - lastMouse.x;
       const dy = e.clientY - lastMouse.y;
-      rotation.y += dx * DRAG_SENS;   // horizontal wie gehabt
-      rotation.x -= dy * DRAG_SENS;   // invertiert: fühlt sich wie «ziehen/stossen» an
+      rotation.y += dx * DRAG_SENS;
+      rotation.x -= dy * DRAG_SENS;
       rotation.x = clamp(rotation.x, -Math.PI/2, Math.PI/2);
-      lastMouse.x = e.clientX;
-      lastMouse.y = e.clientY;
+      lastMouse.x = e.clientX; lastMouse.y = e.clientY;
     });
     window.addEventListener("mouseup", ()=>{ isDragging = false; });
 
-    // Touch-Unterstützung
+    // Touch
     svg.addEventListener("touchstart", (e)=>{
       if(e.touches.length !== 1) return;
       const t = e.touches[0];
-      isDragging = true;
-      lastMouse.x = t.clientX;
-      lastMouse.y = t.clientY;
-      hideTooltip();
+      isDragging = true; lastMouse.x = t.clientX; lastMouse.y = t.clientY; hideTooltip();
     }, {passive:true});
     svg.addEventListener("touchmove", (e)=>{
       if(!isDragging || e.touches.length !== 1) return;
@@ -340,27 +366,24 @@
       const dx = t.clientX - lastMouse.x;
       const dy = t.clientY - lastMouse.y;
       rotation.y += dx * DRAG_SENS;
-      rotation.x -= dy * DRAG_SENS;   // invertiert
+      rotation.x -= dy * DRAG_SENS;
       rotation.x = clamp(rotation.x, -Math.PI/2, Math.PI/2);
-      lastMouse.x = t.clientX;
-      lastMouse.y = t.clientY;
+      lastMouse.x = t.clientX; lastMouse.y = t.clientY;
     }, {passive:true});
     svg.addEventListener("touchend", ()=>{ isDragging = false; });
 
-    // Mausrad-Zoom (über SVG)
+    // Zoom (Mausrad)
     svg.addEventListener("wheel", (e)=>{
-      // Damit die Seite nicht scrollt, während man über der Kugel zoomt
       e.preventDefault();
-
-      const isTrackpad = Math.abs(e.deltaY) < 40; // grobe Heuristik
+      const isTrackpad = Math.abs(e.deltaY) < 40;
       const step = isTrackpad ? CFG.zoom.trackpadStep : CFG.zoom.step;
-
-      // deltaY > 0 => rauszoomen (grösseres d), deltaY < 0 => reinzoomen (kleineres d)
       const factor = e.deltaY > 0 ? step : (1 / step);
       cameraD = clamp(cameraD * factor, CFG.zoom.min, CFG.zoom.max);
     }, { passive: false });
 
-    info.close().addEventListener("click", clearSelection);
+    // Popover schliessen
+    popEls.close().addEventListener("click", clearSelection);
+    window.addEventListener("resize", ()=>{ if(!pop().hidden){ const active = document.querySelector(".node.active"); if(active){ /* position in render aktualisiert */ } }});
 
     window.addEventListener("blur", ()=>{ if(rafId){ cancelAnimationFrame(rafId); rafId = null; }});
     window.addEventListener("focus", ()=>{ if(!rafId) rafId = requestAnimationFrame(render); });

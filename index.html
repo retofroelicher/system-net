@@ -12,7 +12,7 @@
   </header>
 
   <main class="stage">
-    <!-- Overlay-Controls im MAIN -->
+    <!-- Overlay-Controls -->
     <div class="controls" role="toolbar" aria-label="Ansicht & Filter">
       <button class="btn active" data-filter="ALL" aria-pressed="true">Alle</button>
       <button class="btn" data-filter="API" aria-pressed="false">API</button>
@@ -59,22 +59,26 @@
       <g id="nodes"></g>
     </svg>
 
-    <aside id="info" aria-live="polite" aria-atomic="true">
-      <div class="info-header">
-        <h2 id="info-title">Wähle einen Knotenpunkt</h2>
-        <button id="info-close" class="icon-btn" aria-label="Schliessen">&times;</button>
+    <!-- Popover-Sprechblase (HTML-Overlay, folgt dem Knoten) -->
+    <div id="popover" role="dialog" aria-modal="false" hidden>
+      <div class="pop-content">
+        <div class="pop-header">
+          <h3 id="pop-title">Titel</h3>
+          <button id="pop-close" class="icon-btn" aria-label="Sprechblase schliessen">&times;</button>
+        </div>
+        <p id="pop-desc" class="pop-desc"></p>
+        <ul id="pop-links" class="link-list"></ul>
+        <div id="pop-meta" class="meta"></div>
+        <div class="pop-arrow" aria-hidden="true"></div>
       </div>
-      <p id="info-desc">Klicke auf einen Punkt, um Details und Links zu sehen.</p>
-      <ul id="info-links" class="link-list"></ul>
-      <div id="info-meta" class="meta"></div>
-    </aside>
+    </div>
   </main>
 
   <footer class="credits">
-    <small>Demo: Ziehen mit der Maus zum Rotieren. Klick auf Knoten zeigt Details.</small>
+    <small>Demo: Ziehen/Zoomen der Kugel. Klick auf Knoten zeigt Info-Sprechblase.</small>
   </footer>
 
-  <!-- Tooltip-Container -->
+  <!-- Hover-Tooltip -->
   <div id="tooltip" role="tooltip" hidden></div>
 
   <!-- Skripte -->
