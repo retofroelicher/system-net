@@ -1,4 +1,4 @@
-/* Rendering & interaction engine with popover (no external libs). */
+/* Rendering & interaction engine with popover (click hit-testing hardened). */
 (function(){
   const CFG = window.APP_CONFIG;
 
@@ -149,9 +149,11 @@
 
       const ring = document.createElementNS("http://www.w3.org/2000/svg","circle");
       ring.classList.add("ring");
+      ring.setAttribute("pointer-events","none"); // Ring soll Klicks nicht abfangen
 
       const c = document.createElementNS("http://www.w3.org/2000/svg","circle");
       c.setAttribute("r", CFG.nodeBaseSize.toString());
+      c.setAttribute("pointer-events","all"); // Klicks explizit erlauben
 
       g.appendChild(t); g.appendChild(ring); g.appendChild(c);
       gNodes().appendChild(g);
@@ -173,15 +175,16 @@
 
   function fillPopover(node){
     const has = !!node.data;
-    popEls.title().textContent = has ? node.data.title : "Knoten";
-    popEls.desc().textContent  = has ? node.data.desc  : "Platzhalter-Knoten ohne hinterlegte Details.";
-    popEls.links().innerHTML   = "";
+    document.getElementById("pop-title").textContent = has ? node.data.title : "Knoten";
+    document.getElementById("pop-desc").textContent  = has ? node.data.desc  : "Platzhalter-Knoten ohne hinterlegte Details.";
+    const list = document.getElementById("pop-links");
+    list.innerHTML = "";
     if(has && Array.isArray(node.data.links)){
       node.data.links.forEach(l=>{
         const li = document.createElement("li");
         const a = document.createElement("a");
         a.href = l.href; a.target="_blank"; a.rel="noopener noreferrer"; a.textContent = l.label;
-        li.appendChild(a); popEls.links().appendChild(li);
+        li.appendChild(a); list.appendChild(li);
       });
     }
   }
@@ -196,7 +199,7 @@
     const sx = svgRect.left + (node.screen.x / viewW) * svgRect.width;
     const sy = svgRect.top  + (node.screen.y / viewH) * svgRect.height;
 
-    // Erst messen (sichtbar halten, sonst getBoundingClientRect ist 0)
+    // messen
     const popRect = p.getBoundingClientRect();
     const margin = 12;
     let left = sx - popRect.width/2;
@@ -206,26 +209,20 @@
     let top = sy - popRect.height - 14;
     let placement = "top";
 
-    // Falls knapp am oberen Rand -> unten anzeigen
     if(top < svgRect.top + 48){
       top = sy + 14;
       placement = "bottom";
     }
 
-    // Pfeil horizontal ausrichten (Position innerhalb des Popovers)
     const arrowX = clamp(sx - left, 14, popRect.width - 14);
-
     p.dataset.placement = placement;
     p.style.setProperty("--arrow-x", `${Math.round(arrowX)}px`);
     p.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
   }
 
   function onSelectNode(node){
-    // Aktiv markieren
     document.querySelectorAll(".node.active").forEach(el=>el.classList.remove("active"));
     node.el.g.classList.add("active");
-
-    // Popover füllen + anzeigen
     fillPopover(node);
     const p = pop();
     p.hidden = false;
@@ -281,7 +278,8 @@
       n.el.ring.setAttribute("cy", p2.y.toFixed(2));
       n.el.ring.setAttribute("r", (CFG.nodeBaseSize * s * 2.2).toFixed(2));
 
-      n.el.g.style.display = passFilter(n) ? "block" : "none";
+      // SVG-spezifisch: sichtbare Elemente ohne "block"
+      n.el.g.style.display = passFilter(n) ? "" : "none";
       depthOrder.push({ z: rot.z, el: n.el.g });
     }
 
@@ -291,7 +289,7 @@
       if(!passFilter(a) || !passFilter(b)){ e.el.style.display = "none"; continue; }
       const a2 = project(a.pos), b2 = project(b.pos);
       const alpha = ((a.pos.z + b.pos.z) * 0.5 + 1) / 2;
-      e.el.style.display = "block";
+      e.el.style.display = "";
       e.el.setAttribute("x1", a2.x.toFixed(2));
       e.el.setAttribute("y1", a2.y.toFixed(2));
       e.el.setAttribute("x2", b2.x.toFixed(2));
@@ -303,7 +301,7 @@
     depthOrder.sort((a,b)=>a.z - b.z);
     depthOrder.forEach(item=>gNodes().appendChild(item.el));
 
-    // Falls Popover offen ist, an aktive Node anheften
+    // Popover an aktive Node anheften
     if(!pop().hidden){
       const active = document.querySelector(".node.active");
       if(active){
@@ -383,7 +381,6 @@
 
     // Popover schliessen
     popEls.close().addEventListener("click", clearSelection);
-    window.addEventListener("resize", ()=>{ if(!pop().hidden){ const active = document.querySelector(".node.active"); if(active){ /* position in render aktualisiert */ } }});
 
     window.addEventListener("blur", ()=>{ if(rafId){ cancelAnimationFrame(rafId); rafId = null; }});
     window.addEventListener("focus", ()=>{ if(!rafId) rafId = requestAnimationFrame(render); });
