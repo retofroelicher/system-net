@@ -1,100 +1,172 @@
 {
   "items": [
     {
-      "title": "Onboarding Guide",
-      "group": "1",
-      "desc": "Kurzer Einstieg mit Links zu internen Ressourcen.",
+      "title": "API Richtlinien",
+      "group": "API",
+      "desc": "Grundsätze für Namensgebung, Versionierung, Fehlercodes und Pagination.",
       "links": [
-        { "label": "Dokument", "href": "#" },
-        { "label": "Wiki", "href": "#" }
+        { "label": "Styleguide", "href": "#" },
+        { "label": "Beispiel-Repo", "href": "#" }
       ]
     },
     {
-      "title": "Team Space",
-      "group": "2",
-      "desc": "Übersicht Team, Rollen und Zuständigkeiten.",
+      "title": "PLA Einführung",
+      "group": "PLA",
+      "desc": "Überblick über Prozesse, Rollen und Artefakte im PLA-Kontext.",
       "links": [
-        { "label": "Board", "href": "#" }
+        { "label": "PLA-Handbuch", "href": "#" }
       ]
     },
     {
-      "title": "Roadmap Q4",
-      "group": "1+2",
-      "desc": "Aktuelle Meilensteine kompakt.",
+      "title": "API & PLA Roadmap Q4",
+      "group": "API & PLA",
+      "desc": "Gemeinsame Meilensteine und Abhängigkeiten zwischen API- und PLA-Teams.",
       "links": [
-        { "label": "Epics", "href": "#" }
+        { "label": "Roadmap-Board", "href": "#" },
+        { "label": "Milestones", "href": "#" }
       ]
     },
     {
-      "title": "Design System",
-      "group": "1",
-      "desc": "UI-Komponenten, Tokens und Beispiele.",
+      "title": "Auth Service",
+      "group": "API",
+      "desc": "JWT-basierte Authentifizierung, Token Refresh und Scopes.",
       "links": [
-        { "label": "Figma", "href": "#" }
+        { "label": "OpenAPI Spec", "href": "#" },
+        { "label": "SDK Beispiele", "href": "#" }
       ]
     },
     {
-      "title": "Datenrichtlinien",
-      "group": "2",
-      "desc": "Security, Datenschutz und Compliance.",
+      "title": "PLA Schulung Basics",
+      "group": "PLA",
+      "desc": "Kompakter Einstiegskurs mit Übungen und Checklisten.",
       "links": [
-        { "label": "Policy", "href": "#" }
+        { "label": "Kursunterlagen", "href": "#" },
+        { "label": "Übungsaufgaben", "href": "#" }
+      ]
+    },
+    {
+      "title": "Webhooks Best Practices",
+      "group": "API",
+      "desc": "Idempotenz, Signaturen, Retries und Dead-Letter-Queues.",
+      "links": [
+        { "label": "Webhook Guide", "href": "#" }
+      ]
+    },
+    {
+      "title": "PLA Qualitätskriterien",
+      "group": "PLA",
+      "desc": "Definition of Ready/Done, Review-Standards und Testabdeckung.",
+      "links": [
+        { "label": "Checkliste DoR/DoD", "href": "#" }
       ]
     },
     {
       "title": "API Katalog",
-      "group": "1+2",
-      "desc": "Services und Endpoints im Überblick.",
+      "group": "API & PLA",
+      "desc": "Übersicht aller produktiven Endpoints und Services.",
       "links": [
-        { "label": "Swagger", "href": "#" }
-      ]
-    },
-    {
-      "title": "Lab: Prototyping",
-      "group": "1",
-      "desc": "Experimentelle Ideen & Demos.",
-      "links": [
-        { "label": "Repository", "href": "#" }
-      ]
-    },
-    {
-      "title": "Support",
-      "group": "2",
-      "desc": "Kontakt & Hilfe.",
-      "links": [
-        { "label": "Kontaktformular", "href": "#" }
+        { "label": "Swagger Hub", "href": "#" },
+        { "label": "Service Matrix", "href": "#" }
       ]
     },
     {
       "title": "Release Notes",
-      "group": "1+2",
-      "desc": "Letzte Änderungen und Fixes.",
+      "group": "API & PLA",
+      "desc": "Letzte Änderungen, Fixes und Breaking Changes.",
       "links": [
         { "label": "Changelog", "href": "#" }
       ]
     },
     {
-      "title": "Schulung Basics",
-      "group": "1",
-      "desc": "Grundlagenmodul für neue Mitarbeitende.",
+      "title": "Monitoring & Alerts",
+      "group": "API",
+      "desc": "SLO/SLI, Dashboards und Alarmierungsregeln für Latenz und Fehlerquote.",
       "links": [
-        { "label": "Kursseite", "href": "#" }
+        { "label": "Grafana Dashboard", "href": "#" },
+        { "label": "Alert-Playbook", "href": "#" }
       ]
     },
     {
-      "title": "Workshops",
-      "group": "2",
-      "desc": "Angebote & Termine.",
+      "title": "PLA Prozesskarte",
+      "group": "PLA",
+      "desc": "End-to-End Prozessdarstellung inkl. Schnittstellen und Eskalationspfaden.",
       "links": [
-        { "label": "Kalender", "href": "#" }
+        { "label": "Prozessdiagramm", "href": "#" }
       ]
     },
     {
-      "title": "Stilrichtlinien",
-      "group": "1+2",
-      "desc": "Tone of Voice & Schreibstil.",
+      "title": "Testing Leitfaden",
+      "group": "API & PLA",
+      "desc": "Contract-, Integration- und E2E-Tests mit Beispielpipelines.",
       "links": [
-        { "label": "Leitfaden", "href": "#" }
+        { "label": "CI/CD Pipeline", "href": "#" },
+        { "label": "Beispieltests", "href": "#" }
+      ]
+    },
+    {
+      "title": "Rate Limiting",
+      "group": "API",
+      "desc": "Fair Use Policy, Throttling-Strategien und Client-Hinweise.",
+      "links": [
+        { "label": "Policy Dokument", "href": "#" }
+      ]
+    },
+    {
+      "title": "PLA Artefakte",
+      "group": "PLA",
+      "desc": "Vorlagen für Spezifikationen, Akzeptanzkriterien und Reviews.",
+      "links": [
+        { "label": "Vorlagen-Paket", "href": "#" }
+      ]
+    },
+    {
+      "title": "Fehlerkatalog",
+      "group": "API",
+      "desc": "Standardisierte Fehlermeldungen mit Codes, Ursachen und Lösungen.",
+      "links": [
+        { "label": "Error Reference", "href": "#" }
+      ]
+    },
+    {
+      "title": "Sicherheitsrichtlinien",
+      "group": "API & PLA",
+      "desc": "OWASP-Top-10, Secrets-Handling, Berechtigungen und Audits.",
+      "links": [
+        { "label": "Security Guide", "href": "#" },
+        { "label": "Audit Checkliste", "href": "#" }
+      ]
+    },
+    {
+      "title": "Datenfluss & Schnittstellen",
+      "group": "API & PLA",
+      "desc": "Systemübersicht mit Datenflüssen, Events und Domain-Grenzen.",
+      "links": [
+        { "label": "System Map", "href": "#" }
+      ]
+    },
+    {
+      "title": "Migration Leitfaden v2",
+      "group": "API",
+      "desc": "Schrittweiser Umstieg auf API v2 inkl. Kompatibilitätslayer.",
+      "links": [
+        { "label": "Migrations-Doku", "href": "#" }
+      ]
+    },
+    {
+      "title": "PLA Retrospektiven",
+      "group": "PLA",
+      "desc": "Formate, Fragenkataloge und Metriken zur kontinuierlichen Verbesserung.",
+      "links": [
+        { "label": "Retro-Toolkit", "href": "#" }
+      ]
+    },
+    {
+      "title": "Onboarding Quickstart",
+      "group": "API & PLA",
+      "desc": "Schnelleinstieg für neue Teammitglieder mit wichtigsten Links.",
+      "links": [
+        { "label": "Startseite", "href": "#" },
+        { "label": "Teamübersicht", "href": "#" }
       ]
     }
   ]

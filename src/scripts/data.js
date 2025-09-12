@@ -1,3 +1,4 @@
+/* Data layer: loads nodes.json, normalizes and provides items to the engine. */
 (function(){
   const { data } = window.APP_CONFIG;
 
@@ -10,7 +11,7 @@
   function normalizeItem(item){
     return {
       title: String(item.title || "Ohne Titel"),
-      group: String(item.group || "1"),
+      group: String(item.group || "API"),
       desc: String(item.desc || ""),
       links: Array.isArray(item.links) ? item.links.map(l => ({
         label: String(l.label || "Link"),
@@ -23,11 +24,13 @@
     try{
       const json = await loadJson(data.url);
       const items = Array.isArray(json.items) ? json.items.map(normalizeItem) : [];
-      return items;
+      return items.length ? items : [
+        { title: "Fallback", group: "API", desc: "Lokaler Fallback.", links: [{label:"Link", href:"#"}] }
+      ];
     }catch(err){
       console.warn("Falling back to inline defaults:", err);
       return [
-        { title: "Fallback Item", group: "1", desc: "Lokaler Fallback.", links: [{label:"Link", href:"#"}] }
+        { title: "Fallback", group: "API", desc: "Lokaler Fallback.", links: [{label:"Link", href:"#"}] }
       ];
     }
   }

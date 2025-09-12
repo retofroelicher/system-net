@@ -7,9 +7,9 @@
   --edge:#2a3a5f;
   --node:#dbe7ff;
   --node-active:#fff;
-  --group-1:#b2f1da;
-  --group-2:#ffd7a6;
-  --group-12:#cfd8ff;
+  --group-1:#b2f1da;   /* alt: Gruppe 1 */
+  --group-2:#ffd7a6;   /* alt: Gruppe 2 */
+  --group-12:#cfd8ff;  /* alt: Gruppe 1+2 */
   --radius:16px;
   --shadow:0 12px 30px rgba(0,0,0,.35);
 }
@@ -28,6 +28,16 @@ body{
 }
 .topbar h1{font-size:18px; margin:0; color:#e7eeff; font-weight:600; letter-spacing:.2px}
 
+/* Controls overlay im MAIN */
+.controls{
+  position:absolute; z-index:3; top:12px; left:12px;
+  display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  background:rgba(15,21,38,.75); border:1px solid rgba(255,255,255,.12);
+  border-radius:12px; padding:8px 10px; backdrop-filter: blur(6px);
+  box-shadow:0 8px 24px rgba(0,0,0,.35);
+}
+.controls .spacer{ width:8px; height:1px; background:rgba(255,255,255,.12); margin:0 4px }
+
 .filters{display:flex; gap:8px; flex-wrap:wrap}
 .btn{
   border:1px solid rgba(255,255,255,.12);
@@ -39,6 +49,56 @@ body{
   background:linear-gradient(180deg, #2b3f6e 0%, #1b2a4d 100%);
   border-color:transparent; box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);
 }
+
+/* iOS-Style Toggle */
+.switch-wrap{
+  display:inline-flex; align-items:center; gap:10px; user-select:none;
+}
+.switch-input{
+  position:absolute; opacity:0; width:0; height:0;
+}
+.switch{
+  position:relative; width:48px; height:28px; display:inline-block; cursor:pointer;
+}
+.switch-track{
+  position:absolute; inset:0;
+  background:#3b415a;
+  border-radius:999px;
+  box-shadow:inset 0 2px 6px rgba(0,0,0,.35);
+  transition:background .2s ease;
+}
+.switch-thumb{
+  position:absolute; top:3px; left:3px;
+  width:22px; height:22px; border-radius:999px;
+  background:#fff;
+  box-shadow:0 2px 6px rgba(0,0,0,.35);
+  transition:transform .2s ease;
+}
+.switch-input:focus + .switch .switch-track{
+  outline:2px solid rgba(108,147,255,.8); outline-offset:2px;
+}
+.switch-input:checked + .switch .switch-track{
+  background:#34c759; /* iOS grün */
+}
+.switch-input:checked + .switch .switch-thumb{
+  transform:translateX(20px);
+}
+/* reduzierte Animationen */
+@media (prefers-reduced-motion: reduce){
+  .switch-thumb, .switch-track { transition:none; }
+}
+
+/* Beschriftung mit Zustand */
+.switch-caption{
+  font-size:14px; color:#e6edff;
+}
+.switch-caption .state{ display:none; margin-left:2px; }
+.switch-caption .on{ color:#9ff0b0; }
+.switch-caption .off{ color:#ffd6a6; }
+.switch-input:checked ~ .switch-caption .on{ display:inline; }
+.switch-input:checked ~ .switch-caption .off{ display:none; }
+.switch-input:not(:checked) ~ .switch-caption .on{ display:none; }
+.switch-input:not(:checked) ~ .switch-caption .off{ display:inline; }
 
 .stage{
   position:relative; height:calc(100vh - 120px); min-height:540px;
@@ -54,7 +114,8 @@ body{
   filter:blur(30px); opacity:.5; transform:translateX(-50%); pointer-events:none; z-index:0;
 }
 
-#scene{ width:100%; height:100%; display:block; z-index:1; }
+#scene{ width:100%; height:100%; display:block; z-index:1; cursor:grab; }
+#scene:active{ cursor:grabbing; }
 
 #ball{ stroke:rgba(255,255,255,.06); stroke-width:1px; filter:url(#softGlow); }
 
@@ -70,9 +131,14 @@ body{
   fill:var(--node);
   stroke:#2b3f6e; stroke-width:1.2;
 }
-.node[data-group="1"] circle{ fill:var(--group-1) }
-.node[data-group="2"] circle{ fill:var(--group-2) }
-.node[data-group="1+2"] circle{ fill:var(--group-12) }
+/* Kompatibilität: alte Gruppenwerte */
+.node[data-group="1"]     circle{ fill:var(--group-1) }
+.node[data-group="2"]     circle{ fill:var(--group-2) }
+.node[data-group="1+2"]   circle{ fill:var(--group-12) }
+/* Neue Labels */
+.node[data-group="API"]       circle{ fill:var(--group-1) }
+.node[data-group="PLA"]       circle{ fill:var(--group-2) }
+.node[data-group="API & PLA"] circle{ fill:var(--group-12) }
 
 .node .ring{
   fill:none; stroke:rgba(255,255,255,.25); stroke-width:.9; opacity:0; transition:opacity .2s ease;

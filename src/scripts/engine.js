@@ -14,6 +14,9 @@
   // Auto-Rotate Toggle-State (aus Config)
   let autoOn = CFG.autoRotate && CFG.autoRotate.enabled !== false;
 
+  // Zoom (Kameradistanz d in der Projektionsformel)
+  let cameraD = CFG.perspective; // wird per Mausrad angepasst
+
   const nodes = []; // {id, group, data, base{x,y,z}, pos{x,y,z}, el{g,circle,ring}, neighbors[]}
   const edges = []; // {a,b,el}
 
@@ -58,7 +61,7 @@
 
   function project(p3){
     const { cx, cy, r } = CFG.sphere;
-    const d = CFG.perspective;
+    const d = cameraD; // <-- dynamische Kameradistanz für Zoom
     const scale = d / (d - (p3.z * r));
     const x2d = cx + (p3.x * r) * scale;
     const y2d = cy + (p3.y * r) * scale;
@@ -74,6 +77,18 @@
     return dists.slice(0,k).map(d=>d.i);
   }
 
+  // Gruppennamen angleichen (Unterstützung für alte und neue Daten)
+  function normalizeGroup(g){
+    if(!g) return "API & PLA";
+    const s = String(g).trim().toUpperCase();
+    if(s === "1") return "API";
+    if(s === "2") return "PLA";
+    if(s === "1+2" || s === "1 & 2" || s === "API & PLA" || s === "API&PLA") return "API & PLA";
+    if(s === "API") return "API";
+    if(s === "PLA") return "PLA";
+    return "API & PLA";
+  }
+
   function applyFilterMode(mode){
     filterMode = mode;
     clearSelection();
@@ -81,7 +96,7 @@
 
   function passFilter(n){
     if(filterMode === "ALL") return true;
-    return n.group === filterMode;
+    return normalizeGroup(n.group) === filterMode;
   }
 
   function buildGraph(items){
@@ -94,14 +109,18 @@
       dataSlots.add(Math.floor(Math.random()*total));
     }
     const slotArr = Array.from(dataSlots);
-    const groups = ["1","2","1+2"];
+    const fallbackGroups = ["API","PLA","API & PLA"];
 
     for(let i=0;i<total;i++){
       const base = points[i];
       const hasData = dataSlots.has(i);
       const data = hasData ? items[ slotArr.indexOf(i) ] : null;
-      const group = data ? data.group : groups[Math.floor(Math.random()*groups.length)];
-      nodes.push({ id:"n"+i, group, data, base:{...base}, pos:{...base}, neighbors:[], el:null });
+
+      const rawGroup = data ? data.group : fallbackGroups[Math.floor(Math.random()*fallbackGroups.length)];
+      const group = normalizeGroup(rawGroup);
+
+      const node = { id:"n"+i, group, data, base:{...base}, pos:{...base}, neighbors:[], el:null };
+      nodes.push(node);
     }
 
     // Kanten (k-NN)
@@ -129,13 +148,14 @@
       g.classList.add("node");
       g.setAttribute("tabindex","0");
       g.setAttribute("role","button");
-      g.setAttribute("aria-label", n.data ? `${n.data.title} (${n.group})` : `Knoten ${i+1} (Gruppe ${n.group})`);
+
+      const titleText = n.data ? n.data.title : `Knoten • ${n.group}`;
+      g.setAttribute("aria-label", `${titleText} (${n.group})`);
       g.dataset.group = n.group;
       g.dataset.id = n.id;
 
-      // Native Fallback-Tooltip
       const t = document.createElementNS("http://www.w3.org/2000/svg","title");
-      t.textContent = n.data ? n.data.title : `Knoten • Gruppe ${n.group}`;
+      t.textContent = titleText;
 
       const ring = document.createElementNS("http://www.w3.org/2000/svg","circle");
       ring.classList.add("ring");
@@ -150,13 +170,16 @@
 
       n.el = { g, circle: c, ring };
 
-      // Interaktionen
-      g.addEventListener("click", ()=> onSelectNode(n));
-      g.addEventListener("mouseenter", (e)=> showTooltipAt(
-        n.data ? n.data.title : `Knoten • Gruppe ${n.group}`, e
-      ));
-      g.addEventListener("mousemove", (e)=> moveTooltip(e));
+      g.addEventListener("click", (evt)=>{ evt.stopPropagation(); onSelectNode(n); });
+      g.addEventListener("mouseenter", (e)=> showTooltipAt(titleText, e));
+      g.addEventListener("mousemove",  (e)=> moveTooltip(e));
       g.addEventListener("mouseleave", hideTooltip);
+    });
+
+    // Klick auf freie Fläche: Auswahl zurücksetzen
+    svgEl().addEventListener("click", (e)=>{
+      const target = e.target;
+      if(target.closest && !target.closest(".node")) clearSelection();
     });
   }
 
@@ -182,8 +205,8 @@
 
   function clearSelection(){
     document.querySelectorAll(".node.active").forEach(el=>el.classList.remove("active"));
-    info.title().textContent = "Wähle einen Knotenpunkt";
-    info.desc().textContent  = "Klicke auf einen Punkt, um Details und Links zu sehen.";
+    info.title().textContent = CFG.labels.defaultTitle;
+    info.desc().textContent  = CFG.labels.defaultDesc;
     info.links().innerHTML   = "";
     info.meta().textContent  = "";
   }
@@ -209,7 +232,6 @@
   }
 
   function render(){
-    // Auto-Rotation nur wenn eingeschaltet
     if (autoOn) {
       rotation.x += CFG.autoRotate.x;
       rotation.y += CFG.autoRotate.y;
@@ -259,9 +281,9 @@
   }
 
   function setupFilters(){
-    const buttons = Array.from(document.querySelectorAll(".filters .btn"));
-    // Filter-Buttons: nur jene, die data-filter besitzen
-    const filterButtons = buttons.filter(b => b.hasAttribute("data-filter"));
+    const controls = document.querySelector(".controls");
+    const filterButtons = Array.from(controls.querySelectorAll(".btn[data-filter]"));
+
     filterButtons.forEach(btn=>{
       btn.addEventListener("click", ()=>{
         filterButtons.forEach(b=>{ b.classList.remove("active"); b.setAttribute("aria-pressed","false"); });
@@ -270,6 +292,15 @@
         applyFilterMode(btn.dataset.filter);
       });
     });
+
+    // iOS-Toggle (Checkbox) für Auto-Rotation
+    const autoInput = controls.querySelector("#toggle-auto");
+    if (autoInput){
+      autoInput.checked = !!autoOn; // initial aus Config
+      autoInput.addEventListener("change", ()=>{
+        autoOn = !!autoInput.checked;
+      });
+    }
   }
 
   function setupControls(){
@@ -316,24 +347,21 @@
     }, {passive:true});
     svg.addEventListener("touchend", ()=>{ isDragging = false; });
 
-    // Auto-Rotation Toggle
-    const autoBtn = document.querySelector(".toggle-auto");
-    if (autoBtn){
-      // Initialer Zustand gemäss Config
-      autoBtn.dataset.auto = autoOn ? "on" : "off";
-      autoBtn.setAttribute("aria-pressed", String(autoOn));
-      autoBtn.textContent = `Auto-Rotation: ${autoOn ? "Ein" : "Aus"}`;
+    // Mausrad-Zoom (über SVG)
+    svg.addEventListener("wheel", (e)=>{
+      // Damit die Seite nicht scrollt, während man über der Kugel zoomt
+      e.preventDefault();
 
-      autoBtn.addEventListener("click", ()=>{
-        autoOn = !autoOn;
-        autoBtn.dataset.auto = autoOn ? "on" : "off";
-        autoBtn.setAttribute("aria-pressed", String(autoOn));
-        autoBtn.textContent = `Auto-Rotation: ${autoOn ? "Ein" : "Aus"}`;
-      });
-    }
+      const isTrackpad = Math.abs(e.deltaY) < 40; // grobe Heuristik
+      const step = isTrackpad ? CFG.zoom.trackpadStep : CFG.zoom.step;
 
-    // Pfeiltasten bleiben deaktiviert
+      // deltaY > 0 => rauszoomen (grösseres d), deltaY < 0 => reinzoomen (kleineres d)
+      const factor = e.deltaY > 0 ? step : (1 / step);
+      cameraD = clamp(cameraD * factor, CFG.zoom.min, CFG.zoom.max);
+    }, { passive: false });
+
     info.close().addEventListener("click", clearSelection);
+
     window.addEventListener("blur", ()=>{ if(rafId){ cancelAnimationFrame(rafId); rafId = null; }});
     window.addEventListener("focus", ()=>{ if(!rafId) rafId = requestAnimationFrame(render); });
   }
