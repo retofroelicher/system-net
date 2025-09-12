@@ -9,20 +9,23 @@
   // Maus-Drag
   let isDragging = false;
   let lastMouse = { x: 0, y: 0 };
-  const DRAG_SENS = 0.003; // rad pro Pixel
+  const DRAG_SENS = 0.003; // rad pro Pixel (feinfühlig)
+
+  // Auto-Rotate Toggle-State (aus Config)
+  let autoOn = CFG.autoRotate && CFG.autoRotate.enabled !== false;
 
   const nodes = []; // {id, group, data, base{x,y,z}, pos{x,y,z}, el{g,circle,ring}, neighbors[]}
   const edges = []; // {a,b,el}
 
   const gEdges = () => document.getElementById("edges");
   const gNodes = () => document.getElementById("nodes");
-  const svgEl = () => document.getElementById("scene");
+  const svgEl  = () => document.getElementById("scene");
   const tooltip = () => document.getElementById("tooltip");
   const info = {
     title: () => document.getElementById("info-title"),
-    desc: () => document.getElementById("info-desc"),
+    desc:  () => document.getElementById("info-desc"),
     links: () => document.getElementById("info-links"),
-    meta: () => document.getElementById("info-meta"),
+    meta:  () => document.getElementById("info-meta"),
     close: () => document.getElementById("info-close")
   };
 
@@ -206,9 +209,11 @@
   }
 
   function render(){
-    // langsamere Auto-Rotation (aus config)
-    rotation.x += CFG.autoRotate.x;
-    rotation.y += CFG.autoRotate.y;
+    // Auto-Rotation nur wenn eingeschaltet
+    if (autoOn) {
+      rotation.x += CFG.autoRotate.x;
+      rotation.y += CFG.autoRotate.y;
+    }
 
     const depthOrder = [];
     for(let i=0;i<nodes.length;i++){
@@ -255,9 +260,11 @@
 
   function setupFilters(){
     const buttons = Array.from(document.querySelectorAll(".filters .btn"));
-    buttons.forEach(btn=>{
+    // Filter-Buttons: nur jene, die data-filter besitzen
+    const filterButtons = buttons.filter(b => b.hasAttribute("data-filter"));
+    filterButtons.forEach(btn=>{
       btn.addEventListener("click", ()=>{
-        buttons.forEach(b=>{ b.classList.remove("active"); b.setAttribute("aria-pressed","false"); });
+        filterButtons.forEach(b=>{ b.classList.remove("active"); b.setAttribute("aria-pressed","false"); });
         btn.classList.add("active");
         btn.setAttribute("aria-pressed","true");
         applyFilterMode(btn.dataset.filter);
@@ -266,9 +273,9 @@
   }
 
   function setupControls(){
-    // Maus-Drag auf dem gesamten SVG
     const svg = svgEl();
 
+    // Maus-Drag mit natürlicher Y-Richtung (ziehen/stossen)
     svg.addEventListener("mousedown", (e)=>{
       isDragging = true;
       lastMouse.x = e.clientX;
@@ -279,8 +286,8 @@
       if(!isDragging) return;
       const dx = e.clientX - lastMouse.x;
       const dy = e.clientY - lastMouse.y;
-      rotation.y += dx * DRAG_SENS;
-      rotation.x += dy * DRAG_SENS;
+      rotation.y += dx * DRAG_SENS;   // horizontal wie gehabt
+      rotation.x -= dy * DRAG_SENS;   // invertiert: fühlt sich wie «ziehen/stossen» an
       rotation.x = clamp(rotation.x, -Math.PI/2, Math.PI/2);
       lastMouse.x = e.clientX;
       lastMouse.y = e.clientY;
@@ -302,14 +309,30 @@
       const dx = t.clientX - lastMouse.x;
       const dy = t.clientY - lastMouse.y;
       rotation.y += dx * DRAG_SENS;
-      rotation.x += dy * DRAG_SENS;
+      rotation.x -= dy * DRAG_SENS;   // invertiert
       rotation.x = clamp(rotation.x, -Math.PI/2, Math.PI/2);
       lastMouse.x = t.clientX;
       lastMouse.y = t.clientY;
     }, {passive:true});
     svg.addEventListener("touchend", ()=>{ isDragging = false; });
 
-    // Pfeiltasten-Bedienung entfällt explizit
+    // Auto-Rotation Toggle
+    const autoBtn = document.querySelector(".toggle-auto");
+    if (autoBtn){
+      // Initialer Zustand gemäss Config
+      autoBtn.dataset.auto = autoOn ? "on" : "off";
+      autoBtn.setAttribute("aria-pressed", String(autoOn));
+      autoBtn.textContent = `Auto-Rotation: ${autoOn ? "Ein" : "Aus"}`;
+
+      autoBtn.addEventListener("click", ()=>{
+        autoOn = !autoOn;
+        autoBtn.dataset.auto = autoOn ? "on" : "off";
+        autoBtn.setAttribute("aria-pressed", String(autoOn));
+        autoBtn.textContent = `Auto-Rotation: ${autoOn ? "Ein" : "Aus"}`;
+      });
+    }
+
+    // Pfeiltasten bleiben deaktiviert
     info.close().addEventListener("click", clearSelection);
     window.addEventListener("blur", ()=>{ if(rafId){ cancelAnimationFrame(rafId); rafId = null; }});
     window.addEventListener("focus", ()=>{ if(!rafId) rafId = requestAnimationFrame(render); });

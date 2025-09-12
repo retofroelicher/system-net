@@ -3,7 +3,7 @@ window.APP_CONFIG = Object.freeze({
   nodeCount: 60,
   neighborsPerNode: 3,
   // langsamere Auto-Rotation
-  autoRotate: { x: 0.0006, y: 0.0016 },
+  autoRotate: { x: 0.0006, y: 0.0016, enabled: true },
   perspective: 900,
   nodeBaseSize: 5.5,
   minScale: 0.55,
@@ -15,6 +15,6 @@ window.APP_CONFIG = Object.freeze({
     metaGroup: "Gruppe"
   },
   data: {
-    url: "./data/nodes.json"
+    url: "../data/nodes.json"
   }
 });
