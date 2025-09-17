@@ -7,6 +7,11 @@
       "links": [
         { "label": "Styleguide", "href": "#" },
         { "label": "Beispiel-Repo", "href": "#" }
+      ],
+      "planets": [
+        { "title": "Naming", "group": "API", "desc": "Namenskonventionen.", "links": [] },
+        { "title": "Versioning", "group": "API", "desc": "Versionierung.", "links": [] },
+        { "title": "Errors", "group": "API", "desc": "Fehlercodes.", "links": [] }
       ]
     },
     {
@@ -15,6 +20,10 @@
       "desc": "Überblick über Prozesse, Rollen und Artefakte im PLA-Kontext.",
       "links": [
         { "label": "PLA-Handbuch", "href": "#" }
+      ],
+      "planets": [
+        { "title": "Prozesse", "group": "PLA", "desc": "Prozessüberblick.", "links": [] },
+        { "title": "Rollen",   "group": "PLA", "desc": "Rollen und Verantwortungen.", "links": [] }
       ]
     },
     {
@@ -24,6 +33,11 @@
       "links": [
         { "label": "Roadmap-Board", "href": "#" },
         { "label": "Milestones", "href": "#" }
+      ],
+      "planets": [
+        { "title": "Milestone A", "group": "API & PLA", "desc": "Meilenstein A.", "links": [] },
+        { "title": "Milestone B", "group": "API & PLA", "desc": "Meilenstein B.", "links": [] },
+        { "title": "Milestone C", "group": "API & PLA", "desc": "Meilenstein C.", "links": [] }
       ]
     },
     {

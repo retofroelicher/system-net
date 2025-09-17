@@ -3,10 +3,16 @@
   const CFG = window.APP_CONFIG;
 
   let rotation = { x: 0.0, y: 0.0 };
-  let filterMode = "ALL";
+  // Filterzustand
+  let filterAll = true; // initial: Alle aktiv
+  let filterAPI = false;
+  let filterPLA = false;
+  let filterShared = false; // expliziter Schalter für API & PLA
+  let searchQuery = "";
   let rafId = null;
   let animating = false;      // läuft aktuell eine Frame-Schleife
   let dirty = true;           // Szene benötigt Update
+  let isTweening = false;     // läuft eine zeitlich begrenzte Tween-Animation (z. B. Zentrieren)
 
   // Maus-Drag
   let isDragging = false;
@@ -24,11 +30,14 @@
 
   const nodes = []; // {id, group, data, base, pos, screen{x,y}, el, neighbors[]}
   const edges = [];
+  // Ephemere "Planeten" (Kindknoten) pro Auswahl
+  let planetNodes = []; // gleiche Struktur wie nodes, aber temporär
 
   const gEdges = () => document.getElementById("edges");
   const gNodes = () => document.getElementById("nodes");
   const svgEl  = () => document.getElementById("scene");
   const tooltip = () => document.getElementById("tooltip");
+  const stageDim = () => document.getElementById('stage-dim');
   // Modal-Refs
   const modal = () => document.getElementById('modal');
   const backdrop = () => document.getElementById('modal-backdrop');
@@ -95,14 +104,25 @@
     return "API & PLA";
   }
 
-  function applyFilterMode(mode){
-    filterMode = mode;
-    clearSelection();
-    invalidate(); // sofort neu rendern
-  }
   function passFilter(n){
-    if(filterMode === "ALL") return true;
-    return normalizeGroup(n.group) === filterMode;
+    // Kategorie-Filter
+    const g = normalizeGroup(n.group);
+    const showCat = (
+      filterAll ||
+      (!filterAll && (
+        (g === 'API' && filterAPI) ||
+        (g === 'PLA' && filterPLA) ||
+        (g === 'API & PLA' && filterShared)
+      ))
+    );
+    if(!showCat) return false;
+    // Suche
+    if(searchQuery){
+      const q = searchQuery.toLowerCase();
+      const text = (n.data ? `${n.data.title} ${n.data.desc}` : '').toLowerCase();
+      if(text.indexOf(q) === -1) return false;
+    }
+    return true;
   }
 
   function buildGraph(items){
@@ -202,6 +222,91 @@
     invalidate();
   }
 
+  function clearPlanets(){
+    planetNodes.forEach(p=>{
+      if(p.el && p.el.g && p.el.g.parentNode){ p.el.g.parentNode.removeChild(p.el.g); }
+    });
+    planetNodes = [];
+  }
+
+  function spawnPlanetsFor(node){
+    clearPlanets();
+    const data = node.data;
+    if(!data || !Array.isArray(data.planets) || !data.planets.length) return;
+    // einfache Kreis-Anordnung um den ausgewählten (aktuell projizierten) Knoten
+    // Nutze aktuelle Rotation -> präzise Position nach Zentrier-Animation
+    const cur2d = project(rotatePoint(node.base, rotation.x, rotation.y));
+    const count = Math.min(8, data.planets.length);
+    const maxRadius = 70; // Pixel im 2D-Bildschirmraum (Maximaler Radius)
+    const baseAngleStep = (Math.PI * 2) / count;
+    const rand = (min,max)=> min + Math.random()*(max-min);
+    for(let i=0;i<count;i++){
+      const pData = data.planets[i];
+      // Zufällige Abweichung vom perfekten Segmentwinkel und zufälliger Radius (0.6..1.0)*max
+      const angJitter = rand(-baseAngleStep*0.35, baseAngleStep*0.35);
+      const ang = i * baseAngleStep + angJitter;
+      const r = maxRadius * rand(0.6, 1.0);
+      const px = cur2d.x + Math.cos(ang) * r;
+      const py = cur2d.y + Math.sin(ang) * r;
+      const g = document.createElementNS("http://www.w3.org/2000/svg","g");
+  g.classList.add("node","planet");
+  g.setAttribute("tabindex","0");
+  g.setAttribute("role","button");
+  g.setAttribute("aria-label", `${pData.title} (Detail)`);
+  g.dataset.group = String(pData.group || 'API & PLA');
+      const c = document.createElementNS("http://www.w3.org/2000/svg","circle");
+      c.setAttribute("cx", px.toFixed(2));
+      c.setAttribute("cy", py.toFixed(2));
+      c.setAttribute("r", "8");
+  const t = document.createElementNS("http://www.w3.org/2000/svg","title");
+  t.textContent = pData.title;
+  g.appendChild(t);
+      g.appendChild(c);
+      gNodes().appendChild(g);
+      // Pop-In später aktivieren (next microtask) mit kleinem zufälligem Delay für Stagger
+      const delay = rand(0, 80); // ms
+      setTimeout(()=> g.classList.add('visible'), delay);
+      const planet = { id:`p-${node.id}-${i}`, group:pData.group, data:pData, base:{x:0,y:0,z:0}, pos:{x:0,y:0,z:0}, screen:{x:px,y:py}, neighbors:[], el:{g, circle:c} };
+      planetNodes.push(planet);
+      // Interaktion: Klick öffnet Modal mit Planetendaten
+      g.addEventListener('click', (evt)=>{
+        evt.stopPropagation();
+        // Planet ins Zentrum ziehen (Animation via transform)
+        try{
+          // Bühne lokal dimmen (Knoten/Planeten bleiben oben)
+          showStageDim();
+          const svg = svgEl();
+          const view = svg.viewBox.baseVal;
+          const centerX = view.x + view.width/2;
+          const centerY = view.y + view.height/2;
+          const dx = centerX - planet.screen.x;
+          const dy = centerY - planet.screen.y;
+          g.classList.add('focus');
+          g.style.transition = 'transform .34s cubic-bezier(0.22, 0.61, 0.36, 1)';
+          g.style.transform = `translate(${dx}px, ${dy}px) scale(1.08)`;
+          // Nach Ende: Modal fade-in (CSS-Klassen steuern Opacity)
+          setTimeout(()=>{
+            hideStageDim();
+            fillModal(planet);
+            openModalWithFade();
+          }, 340);
+        }catch(_e){
+          // Fallback: ohne Animation direkt öffnen
+          hideStageDim();
+          fillModal(planet);
+          openModalWithFade();
+        }
+      });
+      g.addEventListener('keydown', (evt)=>{
+        if(evt.key === 'Enter' || evt.key === ' '){
+          evt.preventDefault();
+          fillModal(planet);
+          openModal();
+        }
+      });
+    }
+  }
+
   function fillModal(node){
     const has = !!node.data;
     modalEls.title().textContent = has ? node.data.title : "Knoten";
@@ -238,8 +343,49 @@
       requestAnimationFrame(()=> closeBtn.focus());
     }
   }
+  function openModalWithFade(){
+    openModal();
+    // CSS Fade-In aktivieren
+    requestAnimationFrame(()=>{
+      backdrop().classList.add('show');
+      modal().classList.add('show');
+    });
+  }
+  // Bühne lokal dimmen, ohne Knoten/Planeten zu überlagern
+  function showStageDim(){ const d = stageDim(); if(d) d.style.opacity = '1'; }
+  function hideStageDim(){ const d = stageDim(); if(d) d.style.opacity = '0'; }
+  // Fokus-Maske: alle anderen Knoten abdunkeln
+  function applyFocusMask(selectedG, extraKeepSet){
+    const keep = new Set();
+    if(selectedG) keep.add(selectedG);
+    if(extraKeepSet && typeof extraKeepSet.forEach === 'function'){
+      extraKeepSet.forEach(el => { if(el) keep.add(el); });
+    }
+    gNodes().querySelectorAll('.node').forEach(el => {
+      const shouldKeep = keep.has(el);
+      el.classList.toggle('dimmed', !shouldKeep);
+    });
+  }
+  function clearFocusMask(){
+    gNodes().querySelectorAll('.node.dimmed').forEach(el => el.classList.remove('dimmed'));
+  }
+  // Nur den Backdrop anzeigen (für Fokus-Animation vor Modal)
+  function openBackdrop(){
+    const b = backdrop();
+    if(b.hasAttribute('hidden')) b.removeAttribute('hidden');
+    b.hidden = false;
+    b.style.display = 'block';
+    b.style.pointerEvents = 'none';
+  }
+  function openBackdropWithFade(){
+    openBackdrop();
+    requestAnimationFrame(()=> backdrop().classList.add('show'));
+  }
   function closeModal(){
     const b = backdrop(); const m = modal();
+    // Fade-Out Klassen entfernen
+    b.classList.remove('show');
+    m.classList.remove('show');
     b.setAttribute('hidden','');
     m.setAttribute('hidden','');
     b.hidden = true; m.hidden = true;
@@ -250,18 +396,34 @@
     m.style.pointerEvents = 'none';
   }
 
-  function onSelectNode(node){
+  async function onSelectNode(node){
     if(!node) return;
     document.querySelectorAll('.node.active').forEach(el=>el.classList.remove('active'));
     node.el.g.classList.add('active');
-    fillModal(node);
-    openModal();
+    // Knoten zentrieren, dann UI fortsetzen
+    try{ await animateCenterOnNode(node, 280); } catch(_e){}
+    const hasPlanets = !!(node.data && Array.isArray(node.data.planets) && node.data.planets.length);
+    if(hasPlanets){
+      // Bühne leicht abdunkeln und andere Knoten dimmen, dann Planeten ausfahren
+      showStageDim();
+      spawnPlanetsFor(node);
+      // Ausgewählten Knoten + alle Planeten im Fokus halten
+      const keep = new Set(planetNodes.map(p => p.el && p.el.g).filter(Boolean));
+      keep.add(node.el.g);
+      applyFocusMask(node.el.g, keep);
+    } else {
+      fillModal(node);
+      openModalWithFade();
+    }
     invalidate();
   }
 
   function clearSelection(){
     document.querySelectorAll('.node.active').forEach(el=>el.classList.remove('active'));
     closeModal();
+    clearPlanets();
+    hideStageDim();
+    clearFocusMask();
   }
 
   // Tooltip helpers
@@ -350,7 +512,7 @@
   }
 
   function isAnimatingState(){
-    return isDragging || autoOn; // Bedingungen für kontinuierliche Frames
+    return isDragging || autoOn || isTweening; // Bedingungen für kontinuierliche Frames
   }
 
   function frame(){
@@ -381,16 +543,53 @@
 
   function setupFilters(){
     const controls = document.querySelector(".controls");
-    const filterButtons = Array.from(controls.querySelectorAll(".btn[data-filter]"));
+  const btnAll = controls.querySelector('[data-role="filter-all"]');
+  const btnAPI = controls.querySelector('[data-role="filter-api"]');
+  const btnPLA = controls.querySelector('[data-role="filter-pla"]');
+  const btnShared = controls.querySelector('[data-role="filter-shared"]');
+  // Suche ist jetzt außerhalb der Controls-Leiste
+  const search = document.getElementById('search');
 
-    filterButtons.forEach(btn=>{
-      btn.addEventListener("click", ()=>{
-        filterButtons.forEach(b=>{ b.classList.remove("active"); b.setAttribute("aria-pressed","false"); });
-        btn.classList.add("active");
-        btn.setAttribute("aria-pressed","true");
-        applyFilterMode(btn.dataset.filter);
+    function updateButtons(){
+      if(btnAll){ btnAll.classList.toggle('active', filterAll); btnAll.setAttribute('aria-pressed', String(filterAll)); }
+      if(btnAPI){ btnAPI.classList.toggle('active', filterAPI); btnAPI.setAttribute('aria-pressed', String(filterAPI)); }
+      if(btnPLA){ btnPLA.classList.toggle('active', filterPLA); btnPLA.setAttribute('aria-pressed', String(filterPLA)); }
+      if(btnShared){ btnShared.classList.toggle('active', filterShared); btnShared.setAttribute('aria-pressed', String(filterShared)); }
+    }
+
+    if(btnAll){
+      btnAll.addEventListener('click', ()=>{
+        filterAll = true; filterAPI = false; filterPLA = false; filterShared = false;
+        updateButtons(); clearSelection(); invalidate();
       });
-    });
+    }
+    if(btnAPI){
+      btnAPI.addEventListener('click', ()=>{
+        filterAll = false; filterAPI = true; filterPLA = false; filterShared = false;
+        updateButtons(); clearSelection(); invalidate();
+      });
+    }
+    if(btnPLA){
+      btnPLA.addEventListener('click', ()=>{
+        filterAll = false; filterAPI = false; filterPLA = true; filterShared = false;
+        updateButtons(); clearSelection(); invalidate();
+      });
+    }
+    if(btnShared){
+      btnShared.addEventListener('click', ()=>{
+        filterAll = false; filterAPI = false; filterPLA = false; filterShared = true;
+        updateButtons(); clearSelection(); invalidate();
+      });
+    }
+    if(search){
+      const onInput = ()=>{ searchQuery = search.value.trim(); invalidate(); };
+      search.addEventListener('input', onInput);
+      // Initialen Zustand übernehmen (z. B. beim Reload mit vorbefülltem Feld)
+      searchQuery = search.value.trim();
+    }
+
+    // Initialer Sync
+    updateButtons();
 
     const autoInput = controls.querySelector("#toggle-auto");
     if (autoInput){
@@ -491,14 +690,24 @@
   // Modal schliessen
   modalEls.close().addEventListener('click', clearSelection);
   backdrop().addEventListener('click', clearSelection);
+  // Klick ausserhalb des Inhalts (auf Overlay) schliesst ebenfalls
+  modal().addEventListener('click', (e)=>{
+    const inside = e.target.closest('.modal-content');
+    if(!inside){
+      clearSelection();
+    }
+  });
 
     // Delegierter Click (Capture-Phase), priorisiert vor Hintergrund-Handler
     gNodes().addEventListener('click', (e)=>{
       const g = e.target.closest('.node');
-      if(g){
-        const id = g.dataset.id;
-        const node = nodes.find(n=>n.id===id);
-        if(node) onSelectNode(node);
+      if(!g) return;
+      // Nur Hauptknoten behandeln: diese haben dataset.id; Planeten nicht
+      const id = g.dataset.id;
+      if(!id) return; // Planet -> eigener Handler im Bubble-Phase
+      const node = nodes.find(n=>n.id===id);
+      if(node){
+        onSelectNode(node);
         e.stopPropagation(); // verhindert Hintergrund-Clear
       }
     }, true);
@@ -522,6 +731,68 @@
     document.addEventListener('webkitfullscreenchange', onFsChange);
     document.addEventListener('mozfullscreenchange', onFsChange);
     document.addEventListener('MSFullscreenChange', onFsChange);
+  }
+
+  // Berechne absolute Zielrotation (rx, ry), so dass der Basisvektor des Knotens
+  // nach Anwendung von X- dann Y-Rotation exakt in Richtung Bildschirmzentrum zeigt (x=y=0, z>0).
+  function computeTargetRotationFor(node){
+    const v = node.base; // unveränderte Basisposition auf der Einheitssphäre
+    // Schritt 1: rx so wählen, dass y-Komponente nach X-Rotation 0 ist
+    let rx = Math.atan2(v.y, v.z); // kann in (-π, π) liegen
+    const denom = Math.hypot(v.y, v.z); // >= 0, entspricht z nach X-Rotation
+    // Schritt 2: ry so wählen, dass x-Komponente nach Y-Rotation 0 ist
+    let ry = Math.atan2(-v.x, denom);
+    // rx in Bereich [-π/2, π/2] normalisieren; ry entsprechend um π verschieben
+    const normalizeAngle = (a)=>{
+      if(a > Math.PI) a -= 2*Math.PI;
+      if(a <= -Math.PI) a += 2*Math.PI;
+      return a;
+    };
+    rx = normalizeAngle(rx);
+    ry = normalizeAngle(ry);
+    if(rx > Math.PI/2){
+      rx = rx - Math.PI;
+      ry = ry + Math.PI;
+    } else if(rx < -Math.PI/2){
+      rx = rx + Math.PI;
+      ry = ry + Math.PI;
+    }
+    ry = normalizeAngle(ry);
+    // Clamp wie im Drag
+    rx = clamp(rx, -Math.PI/2, Math.PI/2);
+    return { x: rx, y: ry };
+  }
+
+  // Tween-Animation der Rotation hin zum Ziel (Zentrieren)
+  function animateCenterOnNode(node, duration = 300){
+    return new Promise((resolve)=>{
+      const startRot = { x: rotation.x, y: rotation.y };
+      const targetRot = computeTargetRotationFor(node);
+      const startTs = performance.now();
+      const easeOutCubic = (t)=> 1 - Math.pow(1 - t, 3);
+      const resumeAuto = autoOn;
+      if(resumeAuto) autoOn = false; // während Tween pausieren
+      isTweening = true;
+      function step(){
+        const now = performance.now();
+        const t = clamp((now - startTs) / duration, 0, 1);
+        const e = easeOutCubic(t);
+        rotation.x = startRot.x + (targetRot.x - startRot.x) * e;
+        rotation.y = startRot.y + (targetRot.y - startRot.y) * e;
+        dirty = true;
+        if(t < 1){
+          requestFrame();
+          requestAnimationFrame(step);
+        } else {
+          rotation.x = targetRot.x; rotation.y = targetRot.y;
+          isTweening = false;
+          if(resumeAuto) autoOn = true;
+          invalidate();
+          resolve();
+        }
+      }
+      requestAnimationFrame(step);
+    });
   }
 
   async function bootstrap(){

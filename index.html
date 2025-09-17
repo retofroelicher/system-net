@@ -14,10 +14,10 @@
   <main class="stage">
     <!-- Overlay-Controls -->
     <div class="controls" role="toolbar" aria-label="Ansicht & Filter">
-      <button class="btn active" data-filter="ALL" aria-pressed="true">Alle</button>
-      <button class="btn" data-filter="API" aria-pressed="false">API</button>
-      <button class="btn" data-filter="PLA" aria-pressed="false">PLA</button>
-      <button class="btn" data-filter="API & PLA" aria-pressed="false">API &amp; PLA</button>
+      <button class="btn filter-all active" data-role="filter-all" aria-pressed="true">Alle</button>
+      <button class="btn filter-cat active" data-role="filter-api" aria-pressed="true">API</button>
+      <button class="btn filter-cat active" data-role="filter-pla" aria-pressed="true">PLA</button>
+      <button class="btn filter-shared" data-role="filter-shared" aria-pressed="false">API &amp; PLA</button>
 
       <span class="spacer"></span>
 
@@ -34,6 +34,11 @@
           <span class="state off">Aus</span>
         </span>
       </div>
+    </div>
+
+    <!-- Separate Suchleiste rechts oben -->
+    <div class="search-bar">
+      <input id="search" class="search-input search-input--lg" type="search" placeholder="Suchen…" aria-label="Suche" />
     </div>
 
     <svg id="scene" viewBox="0 0 1000 700" aria-label="Interaktive Netz-Kugel" tabindex="0">
@@ -54,6 +59,8 @@
 
       <circle id="ball" cx="500" cy="350" r="300" fill="url(#ballGlow)" />
       <g id="edges" stroke-linecap="round"></g>
+      <!-- Lokales Dim-Overlay innerhalb der Bühne (dunkelt Ball & Kanten ab, nicht die Knoten) -->
+      <rect id="stage-dim" x="0" y="0" width="1000" height="700" fill="rgba(0,0,0,0.45)" opacity="0" style="transition: opacity .2s ease; pointer-events:none" />
       <g id="nodes"></g>
     </svg>
   </main>
