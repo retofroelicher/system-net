@@ -36,8 +36,6 @@
       </div>
     </div>
 
-    <div class="sphere-shadow"></div>
-
     <svg id="scene" viewBox="0 0 1000 700" aria-label="Interaktive Netz-Kugel" tabindex="0">
       <defs>
         <radialGradient id="ballGlow" cx="50%" cy="45%">
@@ -58,18 +56,17 @@
       <g id="edges" stroke-linecap="round"></g>
       <g id="nodes"></g>
     </svg>
-
-    <!-- Popover-Sprechblase (HTML-Overlay, folgt dem Knoten) -->
-  <div id="popover" class="popover" role="dialog" aria-modal="false" hidden>
-      <div class="pop-content">
-        <div class="pop-header">
-          <h3 id="pop-title">Titel</h3>
-          <button id="pop-close" class="icon-btn" aria-label="Sprechblase schliessen">&times;</button>
+    
+    <!-- Modal-Overlay für Knotendetails -->
+    <div id="modal-backdrop" class="modal-backdrop" hidden></div>
+    <div id="modal" class="modal" role="dialog" aria-modal="true" hidden aria-labelledby="modal-title">
+      <div class="modal-content" role="document">
+        <div class="modal-header">
+          <h3 id="modal-title">Titel</h3>
+          <button id="modal-close" class="icon-btn" aria-label="Modal schliessen">&times;</button>
         </div>
-        <p id="pop-desc" class="pop-desc"></p>
-        <ul id="pop-links" class="link-list"></ul>
-        <div id="pop-meta" class="meta"></div>
-        <div class="pop-arrow" aria-hidden="true"></div>
+        <p id="modal-desc" class="modal-desc"></p>
+        <ul id="modal-links" class="link-list"></ul>
       </div>
     </div>
   </main>
