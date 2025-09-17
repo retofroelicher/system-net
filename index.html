@@ -56,24 +56,24 @@
       <g id="edges" stroke-linecap="round"></g>
       <g id="nodes"></g>
     </svg>
-    
-    <!-- Modal-Overlay für Knotendetails -->
-    <div id="modal-backdrop" class="modal-backdrop" hidden></div>
-    <div id="modal" class="modal" role="dialog" aria-modal="true" hidden aria-labelledby="modal-title">
-      <div class="modal-content" role="document">
-        <div class="modal-header">
-          <h3 id="modal-title">Titel</h3>
-          <button id="modal-close" class="icon-btn" aria-label="Modal schliessen">&times;</button>
-        </div>
-        <p id="modal-desc" class="modal-desc"></p>
-        <ul id="modal-links" class="link-list"></ul>
-      </div>
-    </div>
   </main>
 
   <footer class="credits">
     <small>Demo: Ziehen/Zoomen der Kugel. Klick auf Knoten zeigt Info-Sprechblase.</small>
   </footer>
+
+  <!-- Modal-Overlay für Knotendetails (außerhalb der Bühne, ganz oben) -->
+  <div id="modal-backdrop" class="modal-backdrop" hidden aria-hidden="true"></div>
+  <div id="modal" class="modal" role="dialog" aria-modal="true" hidden aria-hidden="true" aria-labelledby="modal-title">
+    <div class="modal-content" role="document">
+      <div class="modal-header">
+        <h3 id="modal-title">Titel</h3>
+        <button id="modal-close" class="icon-btn" aria-label="Modal schliessen">&times;</button>
+      </div>
+      <p id="modal-desc" class="modal-desc"></p>
+      <ul id="modal-links" class="link-list"></ul>
+    </div>
+  </div>
 
   <!-- Hover-Tooltip -->
   <div id="tooltip" role="tooltip" hidden></div>

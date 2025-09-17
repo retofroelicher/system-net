@@ -10,8 +10,11 @@
 
   // Maus-Drag
   let isDragging = false;
+  let pendingDrag = false;
+  let dragStart = { x: 0, y: 0 };
   let lastMouse = { x: 0, y: 0 };
   const DRAG_SENS = 0.003; // rad/px
+  const DRAG_THRESHOLD = 4; // px
 
   // Auto-Rotate
   let autoOn = CFG.autoRotate && CFG.autoRotate.enabled !== false;
@@ -226,6 +229,8 @@
     // Inline-Display als Fallback (falls [hidden]-Styles noch greifen)
     b.style.display = 'block';
     m.style.display = 'flex';
+  b.style.pointerEvents = 'auto';
+  m.style.pointerEvents = 'auto';
     // Fokus auf Close-Button setzen (kleines UX-Plus)
     const closeBtn = modalEls.close();
     if (closeBtn) {
@@ -241,6 +246,8 @@
     // Inline-Styles zur fccksetzen
     b.style.display = '';
     m.style.display = '';
+    b.style.pointerEvents = 'none';
+    m.style.pointerEvents = 'none';
   }
 
   function onSelectNode(node){
@@ -408,39 +415,68 @@
     const svg = svgEl();
 
   // Drag (ziehen/stossen)
+    let autoWasPaused = false;
     svg.addEventListener("mousedown", (e)=>{
-      isDragging = true; lastMouse.x = e.clientX; lastMouse.y = e.clientY; hideTooltip(); requestFrame();
+      pendingDrag = true; isDragging = false;
+      dragStart.x = lastMouse.x = e.clientX; dragStart.y = lastMouse.y = e.clientY;
+      hideTooltip();
+      // Auto-Rotate temporär pausieren, damit Click-Ziel stabil bleibt
+      if(autoOn){ autoOn = false; autoWasPaused = true; }
     });
     window.addEventListener("mousemove", (e)=>{
-      if(!isDragging) return;
-      const dx = e.clientX - lastMouse.x;
-      const dy = e.clientY - lastMouse.y;
-      rotation.y += dx * DRAG_SENS;
-      rotation.x -= dy * DRAG_SENS;
-      rotation.x = clamp(rotation.x, -Math.PI/2, Math.PI/2);
-      lastMouse.x = e.clientX; lastMouse.y = e.clientY;
-      dirty = true; // Positionsänderung
+      if(!(pendingDrag || isDragging)) return;
+      const dxTotal = e.clientX - dragStart.x;
+      const dyTotal = e.clientY - dragStart.y;
+      if(pendingDrag && (Math.abs(dxTotal) > DRAG_THRESHOLD || Math.abs(dyTotal) > DRAG_THRESHOLD)){
+        pendingDrag = false; isDragging = true; requestFrame();
+      }
+      if(isDragging){
+        const dx = e.clientX - lastMouse.x;
+        const dy = e.clientY - lastMouse.y;
+        rotation.y += dx * DRAG_SENS;
+        rotation.x -= dy * DRAG_SENS;
+        rotation.x = clamp(rotation.x, -Math.PI/2, Math.PI/2);
+        lastMouse.x = e.clientX; lastMouse.y = e.clientY;
+        dirty = true; // Positionsänderung
+      }
     });
-    window.addEventListener("mouseup", ()=>{ if(isDragging){ isDragging = false; invalidate(); } });
+    window.addEventListener("mouseup", ()=>{ 
+      if(isDragging){ isDragging = false; invalidate(); }
+      pendingDrag = false;
+      if(autoWasPaused){ autoOn = true; autoWasPaused = false; }
+    });
 
     // Touch
     svg.addEventListener("touchstart", (e)=>{
       if(e.touches.length !== 1) return;
       const t = e.touches[0];
-      isDragging = true; lastMouse.x = t.clientX; lastMouse.y = t.clientY; hideTooltip(); requestFrame();
+      pendingDrag = true; isDragging = false;
+      dragStart.x = lastMouse.x = t.clientX; dragStart.y = lastMouse.y = t.clientY; hideTooltip();
+      if(autoOn){ autoOn = false; autoWasPaused = true; }
     }, {passive:true});
     svg.addEventListener("touchmove", (e)=>{
-      if(!isDragging || e.touches.length !== 1) return;
+      if(!(pendingDrag || isDragging) || e.touches.length !== 1) return;
       const t = e.touches[0];
-      const dx = t.clientX - lastMouse.x;
-      const dy = t.clientY - lastMouse.y;
-      rotation.y += dx * DRAG_SENS;
-      rotation.x -= dy * DRAG_SENS;
-      rotation.x = clamp(rotation.x, -Math.PI/2, Math.PI/2);
-      lastMouse.x = t.clientX; lastMouse.y = t.clientY;
-      dirty = true;
+      const dxTotal = t.clientX - dragStart.x;
+      const dyTotal = t.clientY - dragStart.y;
+      if(pendingDrag && (Math.abs(dxTotal) > DRAG_THRESHOLD || Math.abs(dyTotal) > DRAG_THRESHOLD)){
+        pendingDrag = false; isDragging = true; requestFrame();
+      }
+      if(isDragging){
+        const dx = t.clientX - lastMouse.x;
+        const dy = t.clientY - lastMouse.y;
+        rotation.y += dx * DRAG_SENS;
+        rotation.x -= dy * DRAG_SENS;
+        rotation.x = clamp(rotation.x, -Math.PI/2, Math.PI/2);
+        lastMouse.x = t.clientX; lastMouse.y = t.clientY;
+        dirty = true;
+      }
     }, {passive:true});
-    svg.addEventListener("touchend", ()=>{ if(isDragging){ isDragging = false; invalidate(); } });
+    svg.addEventListener("touchend", ()=>{ 
+      if(isDragging){ isDragging = false; invalidate(); }
+      pendingDrag = false;
+      if(autoWasPaused){ autoOn = true; autoWasPaused = false; }
+    });
 
     // Zoom (Mausrad)
     svg.addEventListener("wheel", (e)=>{
@@ -456,8 +492,7 @@
   modalEls.close().addEventListener('click', clearSelection);
   backdrop().addEventListener('click', clearSelection);
 
-    // Delegierter Click (Fallback / Robustheit)
-    // Delegierter Click (Bubble-Phase) als Fallback
+    // Delegierter Click (Capture-Phase), priorisiert vor Hintergrund-Handler
     gNodes().addEventListener('click', (e)=>{
       const g = e.target.closest('.node');
       if(g){
@@ -466,7 +501,7 @@
         if(node) onSelectNode(node);
         e.stopPropagation(); // verhindert Hintergrund-Clear
       }
-    });
+    }, true);
 
     // ESC schliesst Modal
     window.addEventListener('keydown', (e)=>{
@@ -477,6 +512,16 @@
     window.addEventListener('resize', ()=>{
       invalidate();
     });
+
+    // Volbild/Fullscreen-Änderungen behandeln
+    const onFsChange = ()=>{
+      // Layout kann sich ändern -> neu zeichnen
+      invalidate();
+    };
+    document.addEventListener('fullscreenchange', onFsChange);
+    document.addEventListener('webkitfullscreenchange', onFsChange);
+    document.addEventListener('mozfullscreenchange', onFsChange);
+    document.addEventListener('MSFullscreenChange', onFsChange);
   }
 
   async function bootstrap(){
