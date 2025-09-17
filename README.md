@@ -20,6 +20,15 @@ Interaktive 3D-ähnliche Kugel-Darstellung eines Netzwerkes mit SVG (Projection 
 ## Entwicklung
 Keine Build-Tools nötig. Einfach `index.html` im Browser öffnen.
 
+
+### Zentrier-Animation (Main-Nodes & Planeten)
+
+- Beim Klick auf einen Hauptknoten wird die Kugel zuerst so rotiert, dass der Knoten exakt vorne in der Mitte steht. Dies geschieht über eine kurze Tween-Animation (ease-out) auf beiden Achsen (X und Y).
+- Knoten mit Unterplaneten: Nach der Zentrierung werden die Planeten eingeblendet (Pop-in). Das Modal öffnet erst bei Klick auf einen Planeten, der zusätzlich in die Mitte übersetzt wird.
+- Knoten ohne Unterplaneten: Das Modal öffnet direkt nach der Zentrierung.
+- Auto-Rotate wird während der Zentrierung kurz pausiert und danach automatisch wieder fortgesetzt.
+
+Technik: In `src/scripts/engine.js` berechnet `computeTargetRotationFor(node)` die absolute Zielrotation (rx, ry), sodass der Basisvektor des Knotens nach Rotation in Richtung Bildschirmzentrum zeigt; `animateCenterOnNode` eased die Rotation dorthin.
 ## Dateien
 * `index.html` – Grundstruktur & UI
 * `src/styles/styles.css` – Layout & Interaktion Styles
