@@ -5,6 +5,8 @@
   let rotation = { x: 0.0, y: 0.0 };
   let filterMode = "ALL";
   let rafId = null;
+  let animating = false;      // läuft aktuell eine Frame-Schleife
+  let dirty = true;           // Szene benötigt Update
 
   // Maus-Drag
   let isDragging = false;
@@ -24,12 +26,14 @@
   const gNodes = () => document.getElementById("nodes");
   const svgEl  = () => document.getElementById("scene");
   const tooltip = () => document.getElementById("tooltip");
-  const pop = () => document.getElementById("popover");
-  const popEls = {
-    title: () => document.getElementById("pop-title"),
-    desc:  () => document.getElementById("pop-desc"),
-    links: () => document.getElementById("pop-links"),
-    close: () => document.getElementById("pop-close")
+  // Modal-Refs
+  const modal = () => document.getElementById('modal');
+  const backdrop = () => document.getElementById('modal-backdrop');
+  const modalEls = {
+    title: () => document.getElementById('modal-title'),
+    desc:  () => document.getElementById('modal-desc'),
+    links: () => document.getElementById('modal-links'),
+    close: () => document.getElementById('modal-close')
   };
 
   function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
@@ -91,6 +95,7 @@
   function applyFilterMode(mode){
     filterMode = mode;
     clearSelection();
+    invalidate(); // sofort neu rendern
   }
   function passFilter(n){
     if(filterMode === "ALL") return true;
@@ -136,31 +141,45 @@
     });
 
     // Knoten-Elemente
-    nodes.forEach((n,i)=>{
+    nodes.forEach((n)=>{
       const g = document.createElementNS("http://www.w3.org/2000/svg","g");
       g.classList.add("node");
-      g.setAttribute("tabindex","0"); g.setAttribute("role","button");
+      g.setAttribute("tabindex","0");
+      g.setAttribute("role","button");
       const titleText = n.data ? n.data.title : `Knoten • ${n.group}`;
       g.setAttribute("aria-label", `${titleText} (${n.group})`);
-      g.dataset.group = n.group; g.dataset.id = n.id;
+      g.dataset.group = n.group; 
+      g.dataset.id = n.id;
+      if(n.data){
+        g.dataset.hasData = "1";
+      }
 
+  const c = document.createElementNS("http://www.w3.org/2000/svg","circle");
+  // Erste projizierte Position setzen, damit sofort klickbar (vor erstem render())
+  const p0 = project(n.base);
+  c.setAttribute('cx', p0.x.toFixed(2));
+  c.setAttribute('cy', p0.y.toFixed(2));
+  c.setAttribute("r", String(Math.max(8, CFG.nodeBaseSize * 1.2))); // kompakter initial
+      // Title Element für native Tooltips als Fallback
       const t = document.createElementNS("http://www.w3.org/2000/svg","title");
       t.textContent = titleText;
-
-      const ring = document.createElementNS("http://www.w3.org/2000/svg","circle");
-      ring.classList.add("ring");
-      ring.setAttribute("pointer-events","none"); // Ring soll Klicks nicht abfangen
-
-      const c = document.createElementNS("http://www.w3.org/2000/svg","circle");
-      c.setAttribute("r", CFG.nodeBaseSize.toString());
-      c.setAttribute("pointer-events","all"); // Klicks explizit erlauben
-
-      g.appendChild(t); g.appendChild(ring); g.appendChild(c);
+      g.appendChild(t);
+      g.appendChild(c);
       gNodes().appendChild(g);
-      n.el = { g, circle: c, ring };
+      n.el = { g, circle: c };
 
-      // Interaktionen
-      g.addEventListener("click", (evt)=>{ evt.stopPropagation(); onSelectNode(n); });
+      // Interaktionen: Click direkt am Node (robust) + Keyboard
+      g.addEventListener('click', (evt)=>{
+        evt.stopPropagation();
+        onSelectNode(n);
+      });
+      // Interaktionen (Keyboard weiterhin direkt am Node)
+      g.addEventListener("keydown", (evt)=>{
+        if(evt.key === "Enter" || evt.key === " "){
+          evt.preventDefault();
+          onSelectNode(n);
+        }
+      });
       g.addEventListener("mouseenter", (e)=> showTooltipAt(titleText, e));
       g.addEventListener("mousemove",  (e)=> moveTooltip(e));
       g.addEventListener("mouseleave", hideTooltip);
@@ -168,70 +187,74 @@
 
     // Klick auf freie Fläche: Auswahl zurücksetzen
     svgEl().addEventListener("click", (e)=>{
+      // Nur löschen, wenn der Klick NICHT auf/innerhalb eines Node-Groups war
+      if(e.defaultPrevented) return;
       const target = e.target;
-      if(target.closest && !target.closest(".node")) clearSelection();
+      const isNodeClick = !!(target.closest && target.closest('.node'));
+      if(!isNodeClick){
+        clearSelection();
+      }
     });
+    // Nach Aufbau erste Darstellung anfordern
+    invalidate();
   }
 
-  function fillPopover(node){
+  function fillModal(node){
     const has = !!node.data;
-    document.getElementById("pop-title").textContent = has ? node.data.title : "Knoten";
-    document.getElementById("pop-desc").textContent  = has ? node.data.desc  : "Platzhalter-Knoten ohne hinterlegte Details.";
-    const list = document.getElementById("pop-links");
+    modalEls.title().textContent = has ? node.data.title : "Knoten";
+    modalEls.desc().textContent  = has ? node.data.desc  : "Platzhalter-Knoten ohne hinterlegte Details.";
+    const list = modalEls.links();
     list.innerHTML = "";
-    if(has && Array.isArray(node.data.links)){
+    if(has && Array.isArray(node.data.links) && node.data.links.length){
       node.data.links.forEach(l=>{
         const li = document.createElement("li");
         const a = document.createElement("a");
         a.href = l.href; a.target="_blank"; a.rel="noopener noreferrer"; a.textContent = l.label;
         li.appendChild(a); list.appendChild(li);
       });
+    } else {
+      // Optional: eine leere Zeile oder gar nichts anzeigen
+      // list bleibt leer
     }
   }
-
-  function positionPopoverAt(node){
-    const svg = svgEl();
-    const p = pop();
-    if(p.hidden) return;
-
-    const svgRect = svg.getBoundingClientRect();
-    const viewW = 1000, viewH = 700; // aus viewBox
-    const sx = svgRect.left + (node.screen.x / viewW) * svgRect.width;
-    const sy = svgRect.top  + (node.screen.y / viewH) * svgRect.height;
-
-    // messen
-    const popRect = p.getBoundingClientRect();
-    const margin = 12;
-    let left = sx - popRect.width/2;
-    left = clamp(left, svgRect.left + margin, svgRect.right - popRect.width - margin);
-
-    // Standard: oberhalb
-    let top = sy - popRect.height - 14;
-    let placement = "top";
-
-    if(top < svgRect.top + 48){
-      top = sy + 14;
-      placement = "bottom";
+  function openModal(){
+    const b = backdrop(); const m = modal();
+    // Entferne Attribut und setze die Property
+    if(b.hasAttribute('hidden')) b.removeAttribute('hidden');
+    if(m.hasAttribute('hidden')) m.removeAttribute('hidden');
+    b.hidden = false; m.hidden = false;
+    // Inline-Display als Fallback (falls [hidden]-Styles noch greifen)
+    b.style.display = 'block';
+    m.style.display = 'flex';
+    // Fokus auf Close-Button setzen (kleines UX-Plus)
+    const closeBtn = modalEls.close();
+    if (closeBtn) {
+      // per RAF nach Layout
+      requestAnimationFrame(()=> closeBtn.focus());
     }
-
-    const arrowX = clamp(sx - left, 14, popRect.width - 14);
-    p.dataset.placement = placement;
-    p.style.setProperty("--arrow-x", `${Math.round(arrowX)}px`);
-    p.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
+  }
+  function closeModal(){
+    const b = backdrop(); const m = modal();
+    b.setAttribute('hidden','');
+    m.setAttribute('hidden','');
+    b.hidden = true; m.hidden = true;
+    // Inline-Styles zur fccksetzen
+    b.style.display = '';
+    m.style.display = '';
   }
 
   function onSelectNode(node){
-    document.querySelectorAll(".node.active").forEach(el=>el.classList.remove("active"));
-    node.el.g.classList.add("active");
-    fillPopover(node);
-    const p = pop();
-    p.hidden = false;
-    positionPopoverAt(node);
+    if(!node) return;
+    document.querySelectorAll('.node.active').forEach(el=>el.classList.remove('active'));
+    node.el.g.classList.add('active');
+    fillModal(node);
+    openModal();
+    invalidate();
   }
 
   function clearSelection(){
-    document.querySelectorAll(".node.active").forEach(el=>el.classList.remove("active"));
-    pop().hidden = true;
+    document.querySelectorAll('.node.active').forEach(el=>el.classList.remove('active'));
+    closeModal();
   }
 
   // Tooltip helpers
@@ -250,9 +273,16 @@
   function hideTooltip(){ tooltip().hidden = true; }
 
   function render(){
-    if (autoOn) {
-      rotation.x += CFG.autoRotate.x;
-      rotation.y += CFG.autoRotate.y;
+    // Vollständiges Re-Project nur wenn dirty oder animierende Zustände
+    if(!(dirty || isAnimatingState())) return; // nichts zu tun
+
+    if(isAnimatingState()){
+      // Nur bei echter Animation Rotation weiterführen
+      if(autoOn){
+        rotation.x += CFG.autoRotate.x;
+        rotation.y += CFG.autoRotate.y;
+      }
+      // Während Drag aktualisiert mousemove bereits rotation.*; hier kein Zusatz.
     }
 
     const depthOrder = [];
@@ -261,58 +291,86 @@
       const rot = rotatePoint(n.base, rotation.x, rotation.y);
       n.pos = rot;
       const p2 = project(rot);
-
-      // Position + Tiefe
-      n.screen.x = p2.x; n.screen.y = p2.y;
-
-      const depth = (rot.z + 1) / 2;
+  const depth = (rot.z + 1) / 2; // depth 0..1
       const s = (CFG.minScale + (CFG.maxScale - CFG.minScale) * clamp(depth,0,1));
-      const alpha = (0.45 + (1.0 - 0.45) * clamp(depth,0,1));
+  const minR = 10; // kleinerer Mindest-Radius
+      const calcR = CFG.nodeBaseSize * s;
 
-      n.el.circle.setAttribute("cx", p2.x.toFixed(2));
-      n.el.circle.setAttribute("cy", p2.y.toFixed(2));
-      n.el.circle.setAttribute("r", (CFG.nodeBaseSize * s).toFixed(2));
-      n.el.circle.setAttribute("fill-opacity", alpha.toFixed(2));
+      // Nur Attribute setzen wenn geändert (kleine Optimierung)
+      const cx = p2.x.toFixed(2), cy = p2.y.toFixed(2), r = Math.max(minR, calcR).toFixed(2);
+      if(n.el.circle.getAttribute('cx') !== cx) n.el.circle.setAttribute('cx', cx);
+      if(n.el.circle.getAttribute('cy') !== cy) n.el.circle.setAttribute('cy', cy);
+      if(n.el.circle.getAttribute('r') !== r)  n.el.circle.setAttribute('r', r);
 
-      n.el.ring.setAttribute("cx", p2.x.toFixed(2));
-      n.el.ring.setAttribute("cy", p2.y.toFixed(2));
-      n.el.ring.setAttribute("r", (CFG.nodeBaseSize * s * 2.2).toFixed(2));
-
-      // SVG-spezifisch: sichtbare Elemente ohne "block"
-      n.el.g.style.display = passFilter(n) ? "" : "none";
-      depthOrder.push({ z: rot.z, el: n.el.g });
+      const show = passFilter(n);
+      if(!show){
+        if(n.el.g.style.display !== 'none') n.el.g.style.display = 'none';
+      }else{
+        if(n.el.g.style.display === 'none') n.el.g.style.display = '';
+        depthOrder.push({ z: rot.z, el: n.el.g });
+      }
+      n.screen.x = p2.x; n.screen.y = p2.y;
     }
 
-    // Kanten
+    // Kanten aktualisieren
     for(const e of edges){
       const a = nodes[e.a], b = nodes[e.b];
-      if(!passFilter(a) || !passFilter(b)){ e.el.style.display = "none"; continue; }
-      const a2 = project(a.pos), b2 = project(b.pos);
-      const alpha = ((a.pos.z + b.pos.z) * 0.5 + 1) / 2;
-      e.el.style.display = "";
-      e.el.setAttribute("x1", a2.x.toFixed(2));
-      e.el.setAttribute("y1", a2.y.toFixed(2));
-      e.el.setAttribute("x2", b2.x.toFixed(2));
-      e.el.setAttribute("y2", b2.y.toFixed(2));
-      e.el.setAttribute("stroke-opacity", (0.25 + alpha * 0.55).toFixed(2));
-    }
-
-    // Zeichenreihenfolge (z-Index)
-    depthOrder.sort((a,b)=>a.z - b.z);
-    depthOrder.forEach(item=>gNodes().appendChild(item.el));
-
-    // Popover an aktive Node anheften
-    if(!pop().hidden){
-      const active = document.querySelector(".node.active");
-      if(active){
-        const id = active.dataset.id;
-        const n = nodes.find(nn => nn.id === id);
-        if(n) positionPopoverAt(n);
+      const show = passFilter(a) && passFilter(b);
+      if(!show){
+        if(e.el.style.display !== 'none') e.el.style.display = 'none';
+        continue;
       }
+      const a2 = project(a.pos), b2 = project(b.pos);
+      const x1 = a2.x.toFixed(2), y1 = a2.y.toFixed(2), x2 = b2.x.toFixed(2), y2 = b2.y.toFixed(2);
+      if(e.el.getAttribute('x1') !== x1) e.el.setAttribute('x1', x1);
+      if(e.el.getAttribute('y1') !== y1) e.el.setAttribute('y1', y1);
+      if(e.el.getAttribute('x2') !== x2) e.el.setAttribute('x2', x2);
+      if(e.el.getAttribute('y2') !== y2) e.el.setAttribute('y2', y2);
+      if(e.el.style.display === 'none') e.el.style.display = '';
+      const alpha = ((a.pos.z + b.pos.z) * 0.5 + 1) / 2;
+      const sop = (0.25 + alpha * 0.55).toFixed(2);
+      if(e.el.getAttribute('stroke-opacity') !== sop) e.el.setAttribute('stroke-opacity', sop);
     }
 
-    rafId = requestAnimationFrame(render);
+    // Depth sort nur wenn es sichtbare Nodes gibt
+    if(depthOrder.length){
+      depthOrder.sort((a,b)=>a.z - b.z);
+      depthOrder.forEach(item=>gNodes().appendChild(item.el));
+    }
+
+    // Modal benötigt keine Repositionierung, bleibt mittig
+    dirty = false;
   }
+
+  function isAnimatingState(){
+    return isDragging || autoOn; // Bedingungen für kontinuierliche Frames
+  }
+
+  function frame(){
+    render();
+    if(isAnimatingState() || dirty){
+      rafId = requestAnimationFrame(frame);
+    } else {
+      animating = false; // stoppen
+    }
+  }
+
+  function requestFrame(){
+    if(!animating){
+      animating = true;
+      rafId = requestAnimationFrame(frame);
+    }
+  }
+
+  function invalidate(){
+    dirty = true; requestFrame();
+  }
+
+  function invalidatePopover(){
+    // Popover braucht nur Repositionierung -> treat as dirty
+    invalidate();
+  }
+
 
   function setupFilters(){
     const controls = document.querySelector(".controls");
@@ -330,16 +388,28 @@
     const autoInput = controls.querySelector("#toggle-auto");
     if (autoInput){
       autoInput.checked = !!autoOn;
-      autoInput.addEventListener("change", ()=>{ autoOn = !!autoInput.checked; });
+      autoInput.addEventListener("change", ()=>{ 
+        const newState = !!autoInput.checked;
+        if(newState !== autoOn){
+          autoOn = newState;
+          if(autoOn){
+            // sofort Animation starten
+            requestFrame();
+          } else {
+            // einmal neu zeichnen (finaler Frame sichert Endzustand)
+            invalidate();
+          }
+        }
+      });
     }
   }
 
   function setupControls(){
     const svg = svgEl();
 
-    // Drag (ziehen/stossen)
+  // Drag (ziehen/stossen)
     svg.addEventListener("mousedown", (e)=>{
-      isDragging = true; lastMouse.x = e.clientX; lastMouse.y = e.clientY; hideTooltip();
+      isDragging = true; lastMouse.x = e.clientX; lastMouse.y = e.clientY; hideTooltip(); requestFrame();
     });
     window.addEventListener("mousemove", (e)=>{
       if(!isDragging) return;
@@ -349,14 +419,15 @@
       rotation.x -= dy * DRAG_SENS;
       rotation.x = clamp(rotation.x, -Math.PI/2, Math.PI/2);
       lastMouse.x = e.clientX; lastMouse.y = e.clientY;
+      dirty = true; // Positionsänderung
     });
-    window.addEventListener("mouseup", ()=>{ isDragging = false; });
+    window.addEventListener("mouseup", ()=>{ if(isDragging){ isDragging = false; invalidate(); } });
 
     // Touch
     svg.addEventListener("touchstart", (e)=>{
       if(e.touches.length !== 1) return;
       const t = e.touches[0];
-      isDragging = true; lastMouse.x = t.clientX; lastMouse.y = t.clientY; hideTooltip();
+      isDragging = true; lastMouse.x = t.clientX; lastMouse.y = t.clientY; hideTooltip(); requestFrame();
     }, {passive:true});
     svg.addEventListener("touchmove", (e)=>{
       if(!isDragging || e.touches.length !== 1) return;
@@ -367,8 +438,9 @@
       rotation.x -= dy * DRAG_SENS;
       rotation.x = clamp(rotation.x, -Math.PI/2, Math.PI/2);
       lastMouse.x = t.clientX; lastMouse.y = t.clientY;
+      dirty = true;
     }, {passive:true});
-    svg.addEventListener("touchend", ()=>{ isDragging = false; });
+    svg.addEventListener("touchend", ()=>{ if(isDragging){ isDragging = false; invalidate(); } });
 
     // Zoom (Mausrad)
     svg.addEventListener("wheel", (e)=>{
@@ -377,21 +449,43 @@
       const step = isTrackpad ? CFG.zoom.trackpadStep : CFG.zoom.step;
       const factor = e.deltaY > 0 ? step : (1 / step);
       cameraD = clamp(cameraD * factor, CFG.zoom.min, CFG.zoom.max);
+      invalidate();
     }, { passive: false });
 
-    // Popover schliessen
-    popEls.close().addEventListener("click", clearSelection);
+  // Modal schliessen
+  modalEls.close().addEventListener('click', clearSelection);
+  backdrop().addEventListener('click', clearSelection);
 
-    window.addEventListener("blur", ()=>{ if(rafId){ cancelAnimationFrame(rafId); rafId = null; }});
-    window.addEventListener("focus", ()=>{ if(!rafId) rafId = requestAnimationFrame(render); });
+    // Delegierter Click (Fallback / Robustheit)
+    // Delegierter Click (Bubble-Phase) als Fallback
+    gNodes().addEventListener('click', (e)=>{
+      const g = e.target.closest('.node');
+      if(g){
+        const id = g.dataset.id;
+        const node = nodes.find(n=>n.id===id);
+        if(node) onSelectNode(node);
+        e.stopPropagation(); // verhindert Hintergrund-Clear
+      }
+    });
+
+    // ESC schliesst Modal
+    window.addEventListener('keydown', (e)=>{
+      if(e.key === 'Escape'){ clearSelection(); }
+    });
+
+    // Resize / OrientationChange -> neu zeichnen
+    window.addEventListener('resize', ()=>{
+      invalidate();
+    });
   }
 
   async function bootstrap(){
     setupFilters();
     setupControls();
+    // (Optionales Debug-Logging entfernt)
     const items = await window.DataAPI.getItems();
     buildGraph(items);
-    render();
+    requestFrame(); // initial Frame (dirty=true aus buildGraph)
   }
 
   window.Engine = Object.freeze({ bootstrap });

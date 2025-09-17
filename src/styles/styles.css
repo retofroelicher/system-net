@@ -7,9 +7,9 @@
   --edge:#2a3a5f;
   --node:#dbe7ff;
   --node-active:#fff;
-  --group-1:#b2f1da;   /* alt: Gruppe 1 */
-  --group-2:#ffd7a6;   /* alt: Gruppe 2 */
-  --group-12:#cfd8ff;  /* alt: Gruppe 1+2 */
+  --group-1:#8ea9db;   /* API */
+  --group-2:#ffe699;   /* PLA */
+  --group-12:#b9f4c9;  /* API & PLA (pastell-grün) */
   --radius:16px;
   --shadow:0 12px 30px rgba(0,0,0,.35);
 
@@ -103,7 +103,7 @@ body{
 #edges line{ stroke:var(--edge); stroke-opacity:.6; stroke-width:1; pointer-events:none; }
 
 /* Knoten sind interaktiv -> Events explizit erlauben */
-.node{ cursor:pointer; transition:transform .08s linear; pointer-events:auto; }
+.node{ cursor:pointer; transition:stroke .15s ease, filter .15s ease; pointer-events:auto; }
 .node *{ pointer-events:auto; } /* z.B. circle, ring */
 .node:focus{ outline:none }
 .node circle{
@@ -123,8 +123,24 @@ body{
   pointer-events:none; /* Ring selbst nicht klickbar nötig */
 }
 .node.active .ring{ opacity:1 }
-.node:hover{ transform:scale(1.08) }
+/* Hover ohne Größen-Änderung, damit kein "Springen" durch Radius/Stroke-Neuberechnung entsteht */
+.node:hover circle{
+  stroke:#fff;
+  stroke-width:1.8;
+  filter:drop-shadow(0 0 4px rgba(255,255,255,.35));
+}
 .node.active circle{ fill:var(--node-active) }
+/* Verstärktes aktives Styling */
+.node.active circle{
+  stroke:#fff;
+  stroke-width:2;
+  filter:drop-shadow(0 0 6px rgba(255,255,255,.45));
+}
+.node:focus-visible circle{
+  outline:2px solid var(--primary); /* Fallback */
+  stroke:#90c4ff;
+  stroke-width:2;
+}
 
 /* Tooltip */
 #tooltip{
@@ -184,3 +200,20 @@ body{
 @media (max-width: 900px){
   .stage{ height:calc(100vh - 112px); }
 }
+
+/* Modal */
+.modal-backdrop{
+  position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1000; backdrop-filter: blur(2px);
+}
+.modal{
+  position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:1001;
+}
+.modal[hidden], .modal-backdrop[hidden]{ display:none }
+.modal-content{
+  width:min(560px, 92vw); max-height:82vh; overflow:auto;
+  background:var(--popover-bg); border:1px solid var(--popover-border);
+  border-radius:12px; padding:14px 14px 12px; box-shadow:0 18px 60px rgba(0,0,0,.55);
+}
+.modal-header{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; }
+.modal-header h3{ font-size:18px; margin:0; color:#e7eeff; font-weight:600; }
+.modal-desc{ color:#c6cce3; margin:.25rem 0 .5rem; font-size:15px; }
